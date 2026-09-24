@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Responsive overflow probe. Dev-only, never linked from the app.
+
+  Loads the app in a fixed-width same-origin iframe and reports whether the
+  document is wider than its viewport. AC-75 requires a mobile state for every
+  feature, and a horizontal scrollbar at 400px is the most common way to fail it
+  silently. Reading a number beats squinting at a screenshot, which is what this
+  exists for.
+
+  Run:  node node_modules/vite/bin/vite.js
+        then open /_probe.html?w=400  (or any width)
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>overflow probe</title>
+    <style>
+      body { font: 14px ui-monospace, monospace; margin: 16px; }
+      #out { white-space: pre; font-size: 15px; }
+      iframe { border: 1px solid #888; display: block; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="out">measuring…</div>
+    <iframe id="f" title="app under test"></iframe>
+    <script>
+      const widths = (new URLSearchParams(location.search).get('w') || '360,400,480,640,768,1024')
+        .split(',')
+        .map(Number);
+      const f = document.getElementById('f');
+      const out = document.getElementById('out');
+      const lines = [];
+
+      function measure(w) {
+        return new Promise((resolve) => {
+          f.style.width = w + 'px';
+          f.style.height = '1200px';
+          f.src = '/?probe=' + w;
+          f.onload = () => {
+            // Give the syllabus fetch and the first paint a chance to land.
+            setTimeout(() => {
+              const d = f.contentDocument.documentElement;
+              const over = d.scrollWidth - d.clientWidth;
+              lines.push(
+                `${String(w).padStart(5)}px  scrollWidth=${String(d.scrollWidth).padStart(5)}  ` +
+                  `clientWidth=${String(d.clientWidth).padStart(5)}  ` +
+                  (over > 1 ? `OVERFLOW +${over}px` : 'ok')
+              );
+              out.textContent = lines.join('\n');
+              resolve();
+            }, 1200);
+          };
+        });
+      }
+
+      (async () => {
+        for (const w of widths) await measure(w);
+        out.textContent =
+          lines.join('\n') +
+          '\n\n' +
+          (lines.some((l) => l.includes('OVERFLOW')) ? 'RESULT: OVERFLOW' : 'RESULT: NO OVERFLOW');
+      })();
+    </script>
+  </body>
+</html>

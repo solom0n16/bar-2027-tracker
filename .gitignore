@@ -1,0 +1,22 @@
+# >>> SpecShip root ignores >>>
+node_modules/
+dist/
+build/
+.playwright-mcp/
+**/data/*.db
+**/data/*.db-shm
+**/data/*.db-wal
+*.db
+.env
+.env.*
+!.env.example
+# Stray validation screenshots/traces
+/*.png
+/*.jpeg
+.specship/artifacts/
+# <<< SpecShip root ignores <<<
+
+# Source spreadsheet — the app uses public/data/syllabus.json built from it.
+*.xlsx
+# Local editor / Claude preview config
+.claude/

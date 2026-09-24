@@ -1,0 +1,651 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Semantic theme tokens — LIGHT ONLY.
+
+   Source colours supplied by the user: #F0DAC5 sand, #1C2340 navy,
+   #50223C wine. Accent family (greens, gold, rose) taken from the daisy plate SVG.
+
+   Dark mode was removed deliberately (design.md decision 11, amended). The
+   palette itself is unchanged — what changed is everything built on top of it:
+   elevation, gradients, a real type scale, and motion.
+
+   Every text and UI pair here is verified against WCAG 2.2 AA by
+   .specship/artifacts/tools/contrast-check.js — run `npm run contrast`.
+
+   HARD RULE, unchanged: components reference ONLY these semantic tokens, never
+   a raw hex and never a palette-scale name (AC-63).
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  /* --- surfaces ---------------------------------------------------------- */
+  --c-surface: #f0dac5; /* sand — the page itself, warm paper */
+  --c-raised: #fbf4ec; /* cards float above the sand */
+  --c-sunken: #e3c8ac; /* progress tracks, wells */
+
+  /* Background wash. Both are LIGHTER than sand on purpose: a wash that
+     darkens the page would quietly eat into every text contrast ratio the
+     tool verifies against --c-surface. */
+  --c-wash-warm: #fdf8f2;
+  --c-wash-sage: #eaf1ea; /* sage glow, echoing the daisy plate */
+
+  /* --- ink --------------------------------------------------------------- */
+  --c-ink: #1c2340; /* navy — body text, 11.39:1 on sand */
+  --c-ink-muted: #4b5170; /* 5.73:1 on sand */
+  --c-heading: #50223c; /* wine — 9.50:1 on sand */
+
+  /* --- accent ------------------------------------------------------------ */
+  --c-accent: #2c4f3e; /* forest — links and accent text, 6.77:1 on sand */
+  --c-accent-solid: #37604d; /* stem green — button fill, 5.28:1 on sand */
+  --c-accent-deep: #243f32; /* the far end of the accent gradient */
+  --c-on-accent: #ffffff; /* 7.14:1 on accent-solid, 11.46:1 on accent-deep */
+  --c-highlight: #e0b15c; /* disc gold — streaks, today, highlights (fill only, never text) */
+  --c-highlight-ink: #7e5410; /* gold as text, 4.91:1 on sand */
+
+  /* --- lines and states -------------------------------------------------- */
+  --c-line: #8c7358; /* borders, 3.30:1 on sand */
+  --c-line-soft: #d9bfa3; /* hairline dividers inside a card */
+  --c-node: #1c2340; /* ribbon node outline, 11.39:1 on sand */
+
+  --c-flag: #93304a; /* rose-claret — needs-review, 5.63:1 on sand */
+  --c-flag-soft: #c0405e; /* ray-edge rose — flag icon fill */
+  --c-success: #37604d;
+  --c-error: #96323e;
+
+  /* --- mastery ladder ---------------------------------------------------- */
+  --c-rung-1: #a9c4b3;
+  --c-rung-2: #4f7d66;
+  --c-rung-3: #2c4f3e;
+
+  /* --- heatmap ramp — sage to forest, from the plate ---------------------- */
+  /* Cells are never the only carrier of a day's value: each has a label, and
+     the card has a legend and a table for screen readers. */
+  --c-heat-0: #eadbc9;
+  --c-heat-1: #a3c2ae;
+  --c-heat-2: #76a088;
+  --c-heat-3: #4f7d66;
+  --c-heat-4: #2c4f3e;
+
+  /* --- botanical family — the daisy plates (design.md 19) ---------------- */
+  /* These are the plates own colours, not an approximation with the existing
+     greens: approximating them would have quietly redrawn the art. The family
+     is used by DaisyArt.tsx and nothing else, so retuning it is contained.
+
+     CONTRAST, honestly stated: a white ray on the page sand is about 1.24:1 and
+     on the plate sage about 1.37:1. Neither reaches 3:1 and neither ever will —
+     white on any warm light ground cannot. The earlier daisy answered this with
+     an outline on every ray; these plates answer it with the sage ground, the
+     modelled shading and a disc that is unmistakable at 3.9:1. The ground is
+     therefore part of the drawing, not decoration, and must not be removed. */
+  --c-plate: #cfdcd2; /* sage ground — what the rays are legible against */
+
+  --c-soil: #b39b7c;
+  --c-soil-grit: #9a8365;
+  --c-seed: #b58f5c;
+  --c-seed-mark: #3a3a2b;
+  --c-root: #c9b58e;
+
+  --c-stem: #5f7344;
+  --c-leaf: #61764a;
+  --c-leaf-lit: #6c814e; /* middle leaf pair, catching more light. Two points
+     darker than the plate drew it (#6e8350), which was 2.95:1 against the sage;
+     this clears 3:1 and the change is not visible at any size. */
+  --c-bud: #6b7f4a;
+  --c-bud-shade: #55683a;
+
+  --c-ray: #ffffff;
+  --c-ray-lit: #fefdf6;
+  --c-ray-cool: #edf0ea; /* rays furthest back */
+  --c-ray-cream: #efe9d6;
+  --c-ray-shade: #e9e2cb;
+  --c-ray-fold: #f6f1e1;
+
+  --c-disc-ring: #e9a214;
+  --c-disc: #f4c233;
+  --c-disc-lit: #f8db66;
+  --c-disc-edge: #ce8a0a;
+
+  /* --- elevation --------------------------------------------------------- */
+  /* Tinted with the navy ink, never neutral grey. A grey shadow on a warm sand
+     ground is the single most reliable way to make a warm palette look cheap. */
+  --shadow-e1: 0 1px 2px rgb(28 35 64 / 0.05), 0 1px 3px rgb(28 35 64 / 0.04);
+  --shadow-e2: 0 2px 4px rgb(28 35 64 / 0.05), 0 6px 16px rgb(28 35 64 / 0.07);
+  --shadow-e3: 0 4px 10px rgb(28 35 64 / 0.06), 0 16px 36px rgb(28 35 64 / 0.1);
+  --shadow-accent: 0 4px 14px rgb(55 96 77 / 0.32);
+  --shadow-inset: inset 0 1px 2px rgb(28 35 64 / 0.08);
+
+  /* --- gradients --------------------------------------------------------- */
+  /* Composed from the tokens above so they can never drift out of sync. */
+  --grad-accent: linear-gradient(135deg, var(--c-accent-solid), var(--c-accent-deep));
+  --grad-meter: linear-gradient(
+    90deg,
+    var(--c-rung-1) 0%,
+    var(--c-rung-2) 55%,
+    var(--c-rung-3) 100%
+  );
+  --grad-hero: linear-gradient(155deg, var(--c-raised) 0%, var(--c-wash-sage) 100%);
+
+  /* --- motion ------------------------------------------------------------ */
+  /* The 400ms ceiling from design.md 5.6 still stands (AC-73). Removing dark
+     mode did not relax the motion budget. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-1: 150ms;
+  --dur-2: 240ms;
+  --dur-3: 320ms;
+  --dur-4: 400ms;
+}
+
+@theme inline {
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-sunken: var(--c-sunken);
+  --color-wash-warm: var(--c-wash-warm);
+  --color-wash-sage: var(--c-wash-sage);
+
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-heading: var(--c-heading);
+
+  --color-accent: var(--c-accent);
+  --color-accent-solid: var(--c-accent-solid);
+  --color-accent-deep: var(--c-accent-deep);
+  --color-on-accent: var(--c-on-accent);
+
+  --color-line: var(--c-line);
+  --color-line-soft: var(--c-line-soft);
+  --color-node: var(--c-node);
+
+  --color-flag: var(--c-flag);
+  --color-flag-soft: var(--c-flag-soft);
+  --color-highlight: var(--c-highlight);
+  --color-highlight-ink: var(--c-highlight-ink);
+  --color-success: var(--c-success);
+  --color-error: var(--c-error);
+
+  --color-rung-1: var(--c-rung-1);
+  --color-rung-2: var(--c-rung-2);
+  --color-rung-3: var(--c-rung-3);
+  --color-heat-0: var(--c-heat-0);
+  --color-heat-1: var(--c-heat-1);
+  --color-heat-2: var(--c-heat-2);
+  --color-heat-3: var(--c-heat-3);
+  --color-heat-4: var(--c-heat-4);
+
+  --color-plate: var(--c-plate);
+  --color-soil: var(--c-soil);
+  --color-stem: var(--c-stem);
+  --color-leaf: var(--c-leaf);
+  --color-ray: var(--c-ray);
+  --color-disc: var(--c-disc);
+  --color-disc-edge: var(--c-disc-edge);
+
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* One fluid size for the countdown, which is the only true display figure on
+     the page. Everything else uses Tailwind's own scale. */
+  --text-display: clamp(3.25rem, 13vw, 5rem);
+
+  --radius-card: 1.25rem;
+  --radius-tile: 0.875rem;
+
+  --shadow-e1: var(--shadow-e1);
+  --shadow-e2: var(--shadow-e2);
+  --shadow-e3: var(--shadow-e3);
+  --shadow-accent: var(--shadow-accent);
+
+  --ease-out: var(--ease-out);
+  --ease-soft: var(--ease-soft);
+
+  --animate-rise: rise var(--dur-4) var(--ease-out) both;
+  --animate-fade: fade var(--dur-2) var(--ease-soft) both;
+  --animate-pop: pop var(--dur-2) var(--ease-out) both;
+  --animate-expand: expand var(--dur-3) var(--ease-out) both;
+  --animate-drawer: slide-in-right var(--dur-3) var(--ease-out) both;
+}
+
+/* --- keyframes ------------------------------------------------------------
+   Every one of these is inside the 400ms ceiling and every one is neutralised
+   by the reduced-motion block at the bottom of this file.
+-------------------------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.82);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes expand {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A split-flap needs two halves moving in sequence: the old top folds down out
+   of the way, then the new bottom falls into place. Rotating the whole tile
+   instead reads as a card spinning, not as a clock flipping. */
+@keyframes flip-fold-top {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flip-fold-bottom {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+@keyframes flip-shade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.38;
+  }
+}
+
+@keyframes flip-shade-out {
+  from {
+    opacity: 0.38;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dive-in {
+  from {
+    transform: translateZ(-340px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--c-surface);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--c-ink);
+    -webkit-font-smoothing: antialiased;
+    /* Long legal text needs air */
+    line-height: 1.6;
+    min-height: 100dvh;
+    /* Two soft washes over the sand. Flat sand across 1,500px of scroll is a
+       large part of what read as dull.
+
+       Kept deliberately small: washes broad enough to fill the viewport drown
+       the sand out entirely, and then the cards — which are lighter than sand —
+       have nothing to sit against and the whole page goes flat again. These are
+       corner glows, not a background. */
+    background-color: var(--c-surface);
+    background-image:
+      radial-gradient(720px 400px at 6% -14%, var(--c-wash-warm), transparent 55%),
+      radial-gradient(600px 360px at 102% -6%, var(--c-wash-sage), transparent 52%);
+    background-attachment: fixed;
+  }
+
+  /* Tabular figures everywhere a number changes, so a meter ticking from 9% to
+     10% does not shift the text beside it. */
+  :where(.tnum) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible focus for keyboard users (AC-72). */
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--c-rung-1);
+    color: var(--c-heading);
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-line-soft);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--c-line);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Entrance stagger. Each child sets --i and inherits one shared animation,
+     which keeps the delay arithmetic out of the markup. */
+  .stagger > * {
+    animation: rise var(--dur-4) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
+
+  /* A card that responds to the pointer. The lift is small on purpose — this
+     is a study tool, not a marketing page. */
+  .card {
+    background-color: var(--c-raised);
+    border: 1px solid var(--c-line-soft);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-e2);
+    transition:
+      box-shadow var(--dur-2) var(--ease-soft),
+      transform var(--dur-2) var(--ease-soft),
+      border-color var(--dur-2) var(--ease-soft);
+  }
+
+  .card-interactive:hover {
+    box-shadow: var(--shadow-e3);
+    transform: translate3d(0, -2px, 0);
+    border-color: var(--c-line);
+  }
+
+  .card-interactive:active {
+    transform: translate3d(0, 0, 0);
+    box-shadow: var(--shadow-e1);
+  }
+
+  /* The press response every control shares. */
+  .pressable {
+    transition:
+      transform var(--dur-1) var(--ease-out),
+      box-shadow var(--dur-1) var(--ease-out),
+      background-color var(--dur-1) var(--ease-soft),
+      color var(--dur-1) var(--ease-soft);
+  }
+  .pressable:active {
+    transform: scale(0.96);
+  }
+
+  .btn-accent {
+    background-image: var(--grad-accent);
+    color: var(--c-on-accent);
+    box-shadow: var(--shadow-accent);
+  }
+  .btn-accent:hover {
+    filter: brightness(1.08);
+  }
+
+  .meter-track {
+    background-color: var(--c-sunken);
+    box-shadow: var(--shadow-inset);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .meter-fill {
+    background-image: var(--grad-meter);
+    border-radius: 99px;
+    height: 100%;
+    /* design.md 5.6: meter changes are 300ms. */
+    transition: width var(--dur-3) var(--ease-out);
+  }
+
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--c-raised) 0%,
+      var(--c-wash-sage) 40%,
+      var(--c-raised) 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* A cell that grows with its content. field-sizing is Chrome/Edge 123+; where
+     it is missing the textarea simply stays one row and scrolls, which is the
+     same behaviour the old input had rather than a regression. */
+  .autogrow {
+    field-sizing: content;
+    resize: none;
+    overflow: hidden;
+    min-height: 1.75rem;
+  }
+
+  /* --- split-flap countdown ----------------------------------------------
+     Each tile is two stacked halves. The static top already carries the NEW
+     value and the static bottom still carries the old one; the two folding
+     halves animate over them and then retire. Total 400ms — the two phases run
+     200ms each, so the whole flip sits exactly at the AC-73 ceiling.
+
+     Under prefers-reduced-motion the folds finish instantly and the static
+     halves are already correct, so the number simply changes. */
+  .flip {
+    position: relative;
+    perspective: 340px;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--c-line-soft);
+    box-shadow: var(--shadow-e2);
+    background-color: var(--c-raised);
+  }
+
+  .flip-half {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 50%;
+    overflow: hidden;
+    background-color: var(--c-raised);
+    backface-visibility: hidden;
+  }
+
+  .flip-half-top {
+    top: 0;
+    border-bottom: 1px solid var(--c-line-soft);
+  }
+
+  .flip-half-bottom {
+    bottom: 0;
+  }
+
+  /* The glyph is the height of the WHOLE tile inside a half-height window, so
+     each half shows its own portion of one continuous numeral. */
+  .flip-glyph {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 200%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    color: var(--c-heading);
+    font-size: 1.75rem;
+    line-height: 1;
+  }
+
+  @media (min-width: 640px) {
+    .flip-glyph {
+      font-size: 2.25rem;
+    }
+  }
+
+  .flip-half-top .flip-glyph {
+    top: 0;
+  }
+
+  .flip-half-bottom .flip-glyph {
+    bottom: 0;
+  }
+
+  .flip-fold-top {
+    z-index: 2;
+    transform-origin: bottom center;
+    animation: flip-fold-top 200ms var(--ease-soft) forwards;
+    box-shadow: 0 8px 14px rgb(28 35 64 / 0.22);
+  }
+
+  .flip-fold-bottom {
+    z-index: 2;
+    transform-origin: top center;
+    animation: flip-fold-bottom 200ms var(--ease-soft) 200ms both;
+    box-shadow: 0 -8px 14px rgb(28 35 64 / 0.18);
+  }
+
+  /* The shading is what actually sells a flip. A panel that rotates without
+     darkening reads as a glitch; one that catches shadow as it turns reads as a
+     physical card falling. Duration cannot help here — 400ms is already the
+     AC-73 ceiling — so the legibility has to come from contrast instead. */
+  .flip-fold-top::after,
+  .flip-fold-bottom::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-color: var(--c-ink);
+  }
+
+  .flip-fold-top::after {
+    animation: flip-shade-in 200ms var(--ease-soft) forwards;
+  }
+
+  .flip-fold-bottom::after {
+    animation: flip-shade-out 200ms var(--ease-soft) 200ms both;
+  }
+
+  /* --- the dive ----------------------------------------------------------
+     Navigating into a subject should feel like moving toward it, not like a
+     panel swapping out. Real perspective + translateZ, so the overview recedes
+     along the z-axis while the subject comes forward through it.
+
+     Still inside the 400ms ceiling (AC-73), and the global reduced-motion block
+     collapses both to an instant state change — the depth is then carried by
+     blur and opacity alone, which convey the same layering without movement. */
+  .dive {
+    perspective: 1400px;
+    perspective-origin: 50% 42%;
+  }
+
+  .dive-layer {
+    transform-origin: 50% 42%;
+    transition:
+      transform var(--dur-4) var(--ease-out),
+      opacity var(--dur-4) var(--ease-out),
+      filter var(--dur-4) var(--ease-out);
+  }
+
+  /* The overview, pushed away behind the subject. */
+  .dive-receded {
+    transform: translateZ(-280px);
+    opacity: 0;
+    filter: blur(6px);
+    pointer-events: none;
+  }
+
+  /* The subject, arriving from beyond the page. */
+  .dive-arriving {
+    animation: dive-in var(--dur-4) var(--ease-out) both;
+  }
+
+  /* Sticky glass header. The blur is what makes a page feel current; the
+     fallback below keeps it legible where backdrop-filter is unsupported. */
+  .glass {
+    background-color: color-mix(in srgb, var(--c-surface) 78%, transparent);
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--dur-2) var(--ease-soft);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass {
+      background-color: var(--c-surface);
+    }
+  }
+  .glass-scrolled {
+    border-bottom-color: var(--c-line-soft);
+    box-shadow: var(--shadow-e1);
+  }
+}
+
+/* --- reduced motion -------------------------------------------------------
+   AC-73. Nothing above is ever the sole carrier of meaning, so removing all of
+   it costs the user nothing but the movement.
+-------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-interactive:hover,
+  .pressable:active {
+    transform: none;
+  }
+}
