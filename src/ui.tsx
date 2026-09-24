@@ -38,7 +38,7 @@ export function PageHeader({
   sub,
   aside,
 }: {
-  kicker: string;
+  kicker?: string;
   title: string;
   sub?: ReactNode;
   aside?: ReactNode;
@@ -46,9 +46,9 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-end justify-between gap-4" style={step(0)}>
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{kicker}</p>
-        <h1 className="mt-1 font-display text-3xl leading-tight text-heading">{title}</h1>
-        {sub && <p className="mt-1 text-sm text-ink-muted">{sub}</p>}
+        {kicker && <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{kicker}</p>}
+        <h1 className="mt-0.5 font-display text-2xl leading-tight text-heading">{title}</h1>
+        {sub && <p className="mt-0.5 text-sm text-ink-muted">{sub}</p>}
       </div>
       {aside}
     </header>
@@ -70,15 +70,15 @@ export function CardHeader({
   id?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         {icon && (
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-wash-sage text-accent">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-wash-sage text-accent [&>svg]:size-4.5">
             {icon}
           </span>
         )}
         <div className="min-w-0">
-          <h2 id={id} className="font-display text-lg leading-tight text-heading">
+          <h2 id={id} className="truncate font-display text-base leading-tight text-heading">
             {title}
           </h2>
           {kicker && <p className="mt-0.5 text-xs text-ink-muted">{kicker}</p>}

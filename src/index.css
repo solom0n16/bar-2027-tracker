@@ -535,6 +535,21 @@
     }
   }
 
+  /* The compact tile used on the dashboard, which fits four numbers across. */
+  .flip-sm {
+    border-radius: 0.625rem;
+    box-shadow: var(--shadow-e1);
+  }
+  /* Repeated at 640px so it outranks the larger .flip-glyph size set there. */
+  .flip-sm .flip-glyph {
+    font-size: 1.5rem;
+  }
+  @media (min-width: 640px) {
+    .flip-sm .flip-glyph {
+      font-size: 1.5rem;
+    }
+  }
+
   .flip-half-top .flip-glyph {
     top: 0;
   }

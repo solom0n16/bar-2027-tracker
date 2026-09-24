@@ -56,7 +56,8 @@ const ANCHOR_VERSE = {
   translation: 'ESV',
 };
 
-const HEAT_WEEKS = 26;
+const HEAT_WEEKS = 30;
+const SUGGESTIONS = 3;
 
 interface Props {
   data: Syllabus;
@@ -79,6 +80,17 @@ interface Props {
   setPreview: (v: number | null) => void;
 }
 
+/**
+ * The dashboard is built to be read at a glance: on a laptop the whole thing
+ * fits one screen. Three rows on a 12-column grid —
+ *
+ *   4 · 4 · 4 · 4   the four numbers: countdown, streak, pace, the daisy
+ *     8   ·   4     what to do today, and where the grade is at risk
+ *     8   ·   4     how the work has been spread, and what is next to earn
+ *
+ * Cards carry a title and nothing else above their content; anything a
+ * subtitle used to explain is either obvious from the content or in a tooltip.
+ */
 export default function Dashboard(props: Props) {
   const { data, lookups, progress, flags, events, lockStates, schedule } = props;
   const now = useNow();
@@ -94,16 +106,19 @@ export default function Dashboard(props: Props) {
     ? data.subjects.find((s) => s.name === pace.week!.focus) ?? null
     : null;
 
-  const suggestions = suggestItems({
-    subjects: data.subjects,
-    parts: data.parts,
-    itemsByPart: lookups.itemsByPart,
-    itemById: lookups.itemById,
-    lockStates,
-    progress,
-    flags,
-    focus: pace.week?.focus ?? null,
-  });
+  const suggestions = suggestItems(
+    {
+      subjects: data.subjects,
+      parts: data.parts,
+      itemsByPart: lookups.itemsByPart,
+      itemById: lookups.itemById,
+      lockStates,
+      progress,
+      flags,
+      focus: pace.week?.focus ?? null,
+    },
+    SUGGESTIONS
+  );
 
   const metrics = useMemo(() => {
     const m = new Map<string, { coverage: number; depth: number }>();
@@ -115,19 +130,19 @@ export default function Dashboard(props: Props) {
   }, [data.subjects, lookups, progress]);
 
   const attention = needsAttention(data.subjects, metrics, flags, lookups.itemById);
-  const mastered = useMemo(
-    () => Object.values(progress).filter((m) => m === 3).length,
-    [progress]
+  const mastered = useMemo(() => Object.values(progress).filter((m) => m === 3).length, [progress]);
+  const milestones = nextMilestones(
+    {
+      touched: props.touched,
+      totalItems: data.items.length,
+      mastered,
+      weightedCoverage: props.coverage,
+      bestStreak: streak.best,
+      daysStudied30,
+      stage: props.stage,
+    },
+    3
   );
-  const milestones = nextMilestones({
-    touched: props.touched,
-    totalItems: data.items.length,
-    mastered,
-    weightedCoverage: props.coverage,
-    bestStreak: streak.best,
-    daysStudied30,
-    stage: props.stage,
-  }, 4);
 
   // Continue: the last Part you touched, or the first suggestion's Part.
   const last = lastTouchedItem(events);
@@ -137,197 +152,145 @@ export default function Dashboard(props: Props) {
   const resumeSubject = resumePart ? lookups.subjectById.get(resumePart.subjectId) : undefined;
 
   return (
-    <div className="stagger space-y-6">
+    <div className="stagger space-y-3">
       <PageHeader
-        kicker={
-          pace.week ? `Week ${pace.week.week} of ${data.calendar.length} · ${pace.week.phase}` : 'Bar 2027'
-        }
         title={`${greeting(now)}.`}
         sub={
-          focusSubject ? (
-            <>
-              This week’s focus is <span className="font-semibold text-ink">{focusSubject.shortName}</span>.
-            </>
-          ) : (
-            pace.week?.focus ?? 'Pick up wherever you like.'
-          )
+          <span className="font-display italic">
+            “{ANCHOR_VERSE.text}”{' '}
+            <span className="font-sans text-xs not-italic text-accent">
+              {ANCHOR_VERSE.ref} · {ANCHOR_VERSE.translation}
+            </span>
+          </span>
         }
         aside={
           resumePart &&
           resumeSubject && (
             <button
               onClick={() => props.onOpenPart(resumePart.id)}
-              className="card card-interactive flex w-full max-w-md cursor-pointer items-center gap-3 p-3 pr-5 text-left sm:w-auto"
+              className="card card-interactive flex w-full max-w-sm cursor-pointer items-center gap-3 p-2.5 pr-4 text-left sm:w-auto"
             >
-              <span className="btn-accent grid size-10 shrink-0 place-items-center rounded-full">
+              <span className="btn-accent grid size-9 shrink-0 place-items-center rounded-full">
                 <PlayIcon />
               </span>
               <span className="min-w-0">
                 <span className="block text-[11px] font-semibold uppercase tracking-wider text-accent">
-                  {lastItem ? 'Continue where you left off' : 'Start here'}
+                  {lastItem ? `Continue · ${relativeDay(last!.localDate, today)}` : 'Start here'}
                 </span>
                 <span className="block truncate text-sm font-semibold text-ink">
                   {resumeSubject.shortName} · Part {resumePart.seq}: {resumePart.title}
                 </span>
-                {last && lastItem && (
-                  <span className="block text-xs text-ink-muted">
-                    Last touched {relativeDay(last.localDate, today)}
-                  </span>
-                )}
               </span>
             </button>
           )
         }
       />
 
-      {/* Every row is a 12-column grid split 8 / 4 or 4 / 4 / 4, and every
-          card is a flex column whose last block sits on the card's bottom
-          edge — so neighbouring cards always start and end on the same lines. */}
-
-      {/* --- countdown + streak ------------------------------------------- */}
-      <div className="grid gap-6 lg:grid-cols-12" style={step(1)}>
-        <section
-          className="card flex flex-col p-6 lg:col-span-8"
-          style={{ backgroundImage: 'var(--grad-hero)' }}
-          aria-labelledby="countdown-title"
-        >
-          <CardHeader
-            id="countdown-title"
-            icon={<HourglassIcon />}
-            title="Until Day 1"
-            kicker={new Date(data.exam.days[0] + 'T00:00:00').toLocaleDateString('en-GB', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-          />
-          <div className="my-auto py-4">
-            <ExamCountdown target={data.exam.days[0]} />
-          </div>
-          <div className="border-t border-line-soft pt-4 text-center">
-            <blockquote className="font-display text-base italic leading-relaxed text-ink">
-              “{ANCHOR_VERSE.text}”
-            </blockquote>
-            <p className="mt-1 text-xs font-medium tracking-wide text-accent">
-              {ANCHOR_VERSE.ref} · {ANCHOR_VERSE.translation}
-            </p>
-          </div>
-        </section>
-
+      {/* --- row 1: the four numbers ------------------------------------- */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" style={step(1)}>
+        <CountdownCard target={data.exam.days[0]} />
         <StreakCard streak={streak} dates={dates} today={today} daysStudied30={daysStudied30} />
+        <PaceCard pace={pace} />
+        <DaisyCard stage={props.stage} coverage={props.coverage} depth={props.depth} onOpen={() => props.go('subjects')} />
       </div>
 
-      {/* --- today + plant ------------------------------------------------ */}
-      <div className="grid gap-6 lg:grid-cols-12" style={step(2)}>
-        <section className="card flex flex-col p-6 lg:col-span-8" aria-labelledby="today-title">
+      {/* --- row 2: today + attention ------------------------------------ */}
+      <div className="grid gap-3 lg:grid-cols-12" style={step(2)}>
+        <section className="card flex min-w-0 flex-col p-4 lg:col-span-8" aria-labelledby="today-title">
           <CardHeader
             id="today-title"
-            icon={<ClockIcon className="size-5" />}
-            title="Today"
-            kicker={now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            icon={<ClockIcon />}
+            title={`Today · ${now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+            action={
+              <span className="shrink-0 text-xs text-ink-muted">
+                {focusSubject && (
+                  <span className="hidden sm:inline">
+                    Focus <span className="font-semibold text-ink">{focusSubject.shortName}</span> ·{' '}
+                  </span>
+                )}
+                <span className="tnum font-semibold text-ink">{newlyCoveredBetween(events, today, today)}</span> new
+              </span>
+            }
           />
-          <div className="mt-5 grid flex-1 gap-5 md:grid-cols-2">
+          <div className="mt-3 grid flex-1 grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
             <RoutinePanel routine={routine} now={now} onOpen={() => props.go('schedule')} />
             <StudyList
               suggestions={suggestions}
               progress={progress}
               lookups={lookups}
-              doneToday={newlyCoveredBetween(events, today, today)}
               onAdvance={props.onAdvance}
               onOpenPart={props.onOpenPart}
             />
           </div>
         </section>
 
-        <section className="card flex flex-col p-6 lg:col-span-4" aria-labelledby="plant-title">
-          <CardHeader
-            id="plant-title"
-            icon={<LeafIcon />}
-            title="Your daisy"
-            kicker={`Stage ${props.stage.roman} · ${props.stage.name}`}
-          />
-          <div className="mx-auto my-4 w-full max-w-[12rem] flex-1">
-            <Daisy stage={props.stage} coverage={props.coverage} depth={props.depth} compact />
-          </div>
-          <div className="space-y-2.5">
-            <PanelBar label="Seen" value={props.coverage} />
-            <PanelBar label="Deep" value={props.depth} muted />
-          </div>
-          {props.coverage > 0.5 && props.depth < props.coverage / 2 && (
-            <p className="mt-3 rounded-tile bg-wash-sage px-3 py-2 text-xs leading-relaxed text-flag">
-              Growing faster than it is flowering. Coverage is well ahead of depth.
-            </p>
-          )}
-          <StagePreview value={props.preview} onChange={props.setPreview} />
-        </section>
-      </div>
-
-      {/* --- heatmap ------------------------------------------------------ */}
-      <div style={step(3)}>
-        <Heatmap events={events} now={now} today={today} />
-      </div>
-
-      {/* --- pace, attention, milestones ---------------------------------- */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" style={step(4)}>
-        <PaceCard pace={pace} />
-
-        <section className="card flex flex-col p-6" aria-labelledby="attention-title">
+        <section className="card flex min-w-0 flex-col p-4 lg:col-span-4" aria-labelledby="attention-title">
           <CardHeader
             id="attention-title"
             icon={<AlertIcon />}
             title="Needs attention"
-            kicker="Where the most grade is still unseen"
+            action={
+              <span
+                className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${
+                  flags.size > 0 ? 'font-semibold text-flag' : 'text-ink-muted'
+                }`}
+                title={flags.size > 0 ? 'Flagged items lead today’s list' : 'Nothing flagged for review'}
+              >
+                <FlagIcon filled={flags.size > 0} className="size-3" />
+                {count(flags.size)} flagged
+              </span>
+            }
           />
-          <ul className="mt-5 space-y-2">
+          <ul className="mt-3 flex flex-1 flex-col justify-between gap-2">
             {attention.map((a) => (
               <li key={a.subject.id}>
                 <button
                   onClick={() => props.onOpenSubject(a.subject.id)}
-                  className="pressable w-full cursor-pointer rounded-tile border border-line-soft p-3 text-left hover:border-line hover:bg-wash-warm"
+                  title="Ranked by how much of the grade is still unseen"
+                  className="pressable -mx-2 w-[calc(100%+1rem)] cursor-pointer rounded-lg px-2 py-1 text-left hover:bg-wash-warm"
                 >
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-semibold text-ink">{a.subject.shortName}</span>
+                  <span className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="truncate font-semibold text-ink">{a.subject.shortName}</span>
                     <span className="shrink-0 text-[11px] font-semibold text-accent">
+                      {a.flagged > 0 && (
+                        <span className="mr-2 inline-flex items-center gap-0.5 text-flag">
+                          <FlagIcon filled className="size-3" />
+                          {a.flagged}
+                        </span>
+                      )}
                       {Math.round(a.subject.weight * 100)}% of grade
                     </span>
                   </span>
-                  <span className="mt-2 block">
+                  <span className="mt-1.5 block">
                     <PanelBar label="Seen" value={a.coverage} />
                   </span>
-                  {a.flagged > 0 && (
-                    <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-flag">
-                      <FlagIcon filled className="size-3" /> {a.flagged} flagged
-                    </span>
-                  )}
                 </button>
               </li>
             ))}
           </ul>
-          <p className="mt-auto flex items-center gap-1.5 border-t border-line-soft pt-4 text-xs text-ink-muted">
-            <FlagIcon filled={flags.size > 0} className={`size-3.5 ${flags.size > 0 ? 'text-flag' : ''}`} />
-            {flags.size === 0
-              ? 'No items flagged for review.'
-              : `${count(flags.size)} flagged for review — they lead today’s list.`}
-          </p>
         </section>
+      </div>
 
-        <section className="card flex flex-col p-6 md:col-span-2 lg:col-span-1" aria-labelledby="milestones-title">
-          <CardHeader id="milestones-title" icon={<TrophyIcon />} title="Next milestones" kicker="Closest first" />
-          <ul className="mt-5 flex flex-1 flex-col justify-between gap-4">
+      {/* --- row 3: activity + milestones -------------------------------- */}
+      <div className="grid gap-3 lg:grid-cols-12" style={step(3)}>
+        <Activity events={events} now={now} today={today} />
+
+        <section className="card flex min-w-0 flex-col p-4 lg:col-span-4" aria-labelledby="milestones-title">
+          <CardHeader id="milestones-title" icon={<TrophyIcon />} title="Next milestones" />
+          <ul className="mt-3 flex flex-1 flex-col justify-between gap-3">
             {milestones.map((m) => {
               const frac = Math.min(1, m.current / m.target);
               return (
                 <li key={m.id}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-sm font-medium text-ink">{m.label}</span>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="truncate font-medium text-ink">{m.label}</span>
                     <span className="tnum shrink-0 text-xs text-ink-muted">
                       {m.unit === '%' ? `${m.current}%` : count(m.current)} /{' '}
                       {m.unit === '%' ? `${m.target}%` : count(m.target)}
                     </span>
                   </div>
                   <div
-                    className="meter-track mt-1.5 h-2"
+                    className="meter-track mt-1 h-1.5"
                     role="progressbar"
                     aria-label={m.label}
                     aria-valuenow={Math.round(frac * 100)}
@@ -342,6 +305,8 @@ export default function Dashboard(props: Props) {
           </ul>
         </section>
       </div>
+
+      <StagePreview value={props.preview} onChange={props.setPreview} />
     </div>
   );
 }
@@ -352,7 +317,56 @@ function relativeDay(date: string, today: string) {
   return new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-// --- streak -----------------------------------------------------------------
+// --- row 1 ------------------------------------------------------------------
+
+/** Months, weeks and days to Day 1. Ticks once a minute; the tiles flip only
+ *  when a number actually changes, which is at most once a day. */
+function CountdownCard({ target }: { target: string }) {
+  const at = useMemo(() => localMidnight(target), [target]);
+  const now = useNow(60_000);
+  const left = countdownTo(at, now);
+  const units = [
+    { key: 'months', label: 'Months', value: left.months },
+    { key: 'weeks', label: 'Weeks', value: left.weeks },
+    { key: 'days', label: 'Days', value: left.days },
+  ];
+
+  return (
+    <section
+      className="card flex min-w-0 flex-col p-4"
+      style={{ backgroundImage: 'var(--grad-hero)' }}
+      aria-labelledby="countdown-title"
+    >
+      <CardHeader
+        id="countdown-title"
+        icon={<HourglassIcon />}
+        title="Until Day 1"
+        action={
+          <span className="shrink-0 text-[11px] text-ink-muted">
+            {new Date(target + 'T00:00:00').toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </span>
+        }
+      />
+      <div className="my-auto flex justify-center gap-2 pt-3" aria-hidden="true">
+        {units.map((u) => (
+          <div key={u.key} className="text-center">
+            <FlipTile value={String(u.value).padStart(2, '0')} />
+            <p className="mt-1.5 text-[10px] uppercase tracking-wider text-ink-muted">{u.label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="sr-only">
+        {left.reached
+          ? 'Day 1 has arrived.'
+          : `${left.months} months, ${left.weeks} weeks and ${left.days} days until Day 1, ${target}.`}
+      </p>
+    </section>
+  );
+}
 
 const WEEKDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -384,67 +398,53 @@ function StreakCard({
     return { label, date, state };
   });
   const broken = streak.current === 0 && streak.best > 0;
-  const lastGrace = streak.graceDates[0];
 
   return (
-    <section className="card flex flex-col p-6 lg:col-span-4" aria-labelledby="streak-title">
+    <section className="card flex min-w-0 flex-col p-4" aria-labelledby="streak-title">
       <CardHeader
         id="streak-title"
         icon={<FlameIcon />}
         title="Streak"
-        kicker="One grace day a week, applied for you"
+        action={
+          <span className="shrink-0 text-[11px] text-ink-muted" title="Longest streak so far">
+            Best <span className="tnum font-semibold text-ink">{streak.best}</span>
+          </span>
+        }
       />
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-tile bg-wash-sage p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Current</p>
+      {/* One grace day per week is forgiven automatically (design.md 8.1). */}
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <p className="tnum font-display text-3xl leading-none text-heading" title="One grace day a week is applied for you">
           {streak.current > 0 ? (
-            <p className="tnum mt-1 font-display text-3xl leading-none text-heading">
+            <>
               {streak.current}
               <span className="ml-1 font-sans text-sm text-ink-muted">day{streak.current === 1 ? '' : 's'}</span>
-            </p>
+            </>
           ) : (
-            <p className="mt-1.5 font-display text-lg leading-tight text-heading">
-              {broken ? 'Welcome back' : 'Start today'}
-            </p>
+            <span className="text-xl">{broken ? 'Welcome back' : 'Start today'}</span>
           )}
-        </div>
-        <div className="rounded-tile border border-line-soft p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Last 30 days</p>
-          <p className="tnum mt-1 font-display text-3xl leading-none text-heading">
-            {daysStudied30}
-            <span className="ml-1 font-sans text-sm text-ink-muted">/ 30</span>
-          </p>
-        </div>
+        </p>
+        <p className="text-right text-[11px] text-ink-muted" title="Days studied in the last 30">
+          <span className="tnum font-display text-lg text-heading">{daysStudied30}</span>/30 days
+        </p>
       </div>
 
-      <ol className="mt-5 grid grid-cols-7 gap-1.5" aria-label="This week">
+      <ol className="mt-auto grid grid-cols-7 gap-1 pt-2.5" aria-label="This week">
         {week.map((d) => (
-          <li key={d.date} className="flex flex-col items-center gap-1.5">
+          <li key={d.date} className="flex flex-col items-center gap-0.5">
             <span
               title={`${d.label}: ${STATE_LABEL[d.state]}`}
               aria-label={`${d.label}, ${STATE_LABEL[d.state]}`}
-              className={`grid size-8 place-items-center rounded-full text-[11px] font-semibold ${DAY_STYLE[d.state]}`}
+              className={`grid size-6 place-items-center rounded-full text-[10px] font-semibold ${DAY_STYLE[d.state]}`}
             >
-              {d.state === 'studied' ? <CheckIcon /> : d.state === 'grace' ? 'G' : ''}
+              {d.state === 'studied' ? <CheckIcon className="size-3" /> : d.state === 'grace' ? 'G' : ''}
             </span>
-            <span className={`text-[11px] ${d.date === today ? 'font-semibold text-ink' : 'text-ink-muted'}`}>
+            <span className={`text-[10px] leading-none ${d.date === today ? 'font-semibold text-ink' : 'text-ink-muted'}`}>
               {d.label.slice(0, 2)}
             </span>
           </li>
         ))}
       </ol>
-
-      <p className="mt-auto pt-4 text-xs leading-relaxed text-ink-muted">
-        Best: <span className="font-semibold text-ink">{streak.best} day{streak.best === 1 ? '' : 's'}</span>
-        {lastGrace && (
-          <>
-            {' '}· Grace day used{' '}
-            {new Date(lastGrace + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
-          </>
-        )}
-        {!streak.studiedToday && streak.current > 0 && ' · One item today keeps it going'}
-      </p>
     </section>
   );
 }
@@ -465,7 +465,108 @@ const DAY_STYLE = {
   missed: 'border border-line bg-sunken/40',
 } as const;
 
-// --- today: routine + study ---------------------------------------------------
+function PaceCard({ pace }: { pace: ReturnType<typeof paceOf> }) {
+  const target = pace.weekTarget;
+  const frac = target ? Math.min(1, pace.weekDone / target) : 0;
+  const expFrac = target && pace.weekExpected !== null ? Math.min(1, pace.weekExpected / target) : 0;
+  const behindBy = pace.weekExpected !== null ? Math.max(0, pace.weekExpected - pace.weekDone) : 0;
+
+  const pill =
+    pace.status === 'ahead'
+      ? { text: 'Ahead', icon: <CheckIcon />, className: 'bg-wash-sage text-success' }
+      : pace.status === 'on-track'
+        ? { text: 'On pace', icon: <CheckIcon />, className: 'bg-wash-sage text-accent' }
+        : pace.status === 'behind'
+          ? { text: `${behindBy} behind`, icon: <AlertIcon className="size-3.5" />, className: 'bg-sunken/60 text-flag' }
+          : { text: 'Review weeks', icon: null, className: 'bg-sunken/60 text-ink-muted' };
+
+  return (
+    <section className="card flex min-w-0 flex-col p-4" aria-labelledby="pace-title">
+      <CardHeader
+        id="pace-title"
+        icon={<TargetIcon />}
+        title={pace.week ? `Week ${pace.week.week}` : 'This week'}
+        action={
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${pill.className}`}>
+            {pill.icon}
+            {pill.text}
+          </span>
+        }
+      />
+
+      <p className="tnum mt-3 font-display text-3xl leading-none text-heading">
+        {pace.weekDone}
+        {target !== null && <span className="ml-1 font-sans text-sm text-ink-muted">/ {target} new items</span>}
+      </p>
+
+      {target !== null && (
+        <div className="relative mt-3" title={`Where the week should be by tonight: ${pace.weekExpected}`}>
+          <div
+            className="meter-track h-2"
+            role="progressbar"
+            aria-label={`Weekly target. ${pace.weekExpected} expected by tonight.`}
+            aria-valuenow={Math.round(frac * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="meter-fill" style={{ width: `${frac * 100}%` }} />
+          </div>
+          <span
+            aria-hidden="true"
+            className="absolute -top-1 h-4 w-0.5 rounded bg-ink"
+            style={{ left: `calc(${expFrac * 100}% - 1px)` }}
+          />
+        </div>
+      )}
+
+      <p className="mt-auto pt-3 text-[11px] leading-snug text-ink-muted">
+        Need <span className="tnum font-semibold text-ink">{pace.perDayNeeded}</span>/day to finish ·
+        you’re at <span className="tnum font-semibold text-ink">{pace.recentPerDay.toFixed(1)}</span>
+      </p>
+    </section>
+  );
+}
+
+function DaisyCard({
+  stage,
+  coverage: cov,
+  depth: dep,
+  onOpen,
+}: {
+  stage: Stage;
+  coverage: number;
+  depth: number;
+  onOpen: () => void;
+}) {
+  return (
+    <section className="card flex min-w-0 flex-col p-4" aria-labelledby="plant-title">
+      <CardHeader
+        id="plant-title"
+        icon={<LeafIcon />}
+        title="Your daisy"
+        action={
+          <LinkButton onClick={onOpen}>
+            Subjects <ArrowRightIcon />
+          </LinkButton>
+        }
+      />
+      <div className="mt-3 flex flex-1 items-center gap-4">
+        <div className="w-12 shrink-0">
+          <Daisy stage={stage} coverage={cov} depth={dep} compact />
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="text-xs font-semibold text-ink">
+            Stage {stage.roman} · {stage.name}
+          </p>
+          <PanelBar label="Seen" value={cov} />
+          <PanelBar label="Deep" value={dep} muted />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- row 2: today -----------------------------------------------------------
 
 function RoutinePanel({
   routine,
@@ -483,18 +584,26 @@ function RoutinePanel({
   const elapsed = b ? Math.min(1, Math.max(0, (m - b.start) / (b.end - b.start))) : 0;
 
   return (
-    <div className="flex flex-col rounded-tile bg-wash-sage p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">
-        Now · {routine.group === 'weekdays' ? 'Weekday' : 'Weekend'} routine
-      </p>
+    <div className="flex flex-col rounded-tile bg-wash-sage p-3.5">
+      <div className="-my-1 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+          Now · {routine.group === 'weekdays' ? 'Weekday' : 'Weekend'}
+        </p>
+        <LinkButton onClick={onOpen}>
+          Routine <ArrowRightIcon />
+        </LinkButton>
+      </div>
       {b ? (
         <>
-          <p className="mt-1.5 font-display text-xl leading-snug text-heading">{b.row.activity}</p>
-          <p className="tnum mt-0.5 text-xs text-ink-muted">
+          <p className="mt-1 truncate font-display text-lg leading-snug text-heading" title={b.row.notes || undefined}>
+            {b.row.activity}
+          </p>
+          <p className="tnum text-xs text-ink-muted">
             {formatMinutes(b.start)} – {formatMinutes(b.end)}
+            {b.row.highlight && <span className="ml-2 rounded-full bg-highlight px-1.5 py-px text-[10px] font-semibold text-ink">Study</span>}
           </p>
           <div
-            className="meter-track mt-3 h-1.5"
+            className="meter-track mt-2 h-1.5"
             role="progressbar"
             aria-label="Time through this block"
             aria-valuenow={Math.round(elapsed * 100)}
@@ -503,40 +612,28 @@ function RoutinePanel({
           >
             <div className="meter-fill" style={{ width: `${elapsed * 100}%` }} />
           </div>
-          {b.row.highlight && (
-            <span className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-highlight px-2 py-0.5 text-[11px] font-semibold text-ink">
-              Study block
-            </span>
-          )}
-          {b.row.notes && <p className="mt-2 text-xs leading-relaxed text-ink-muted">{b.row.notes}</p>}
         </>
       ) : (
-        <p className="mt-1.5 text-sm text-ink">Nothing scheduled right now.</p>
+        <p className="mt-1 text-sm text-ink">Nothing scheduled right now.</p>
       )}
 
-      <div className="mt-4 border-t border-line-soft pt-3">
+      <p className="mt-3 border-t border-line-soft pt-2.5 text-xs text-ink-muted">
         {routine.next ? (
-          <p className="text-xs text-ink-muted">
-            Up next at <span className="tnum font-semibold text-ink">{formatMinutes(routine.next.start)}</span>
-            <span className="mt-0.5 block text-sm font-medium text-ink">{routine.next.row.activity}</span>
-          </p>
+          <>
+            Next <span className="tnum font-semibold text-ink">{formatMinutes(routine.next.start)}</span> ·{' '}
+            <span className="text-ink">{routine.next.row.activity}</span>
+          </>
         ) : (
-          <p className="text-xs text-ink-muted">Nothing else on the clock today.</p>
+          'Nothing else on the clock today.'
         )}
-      </div>
-
-      <div className="mt-auto pt-3">
-        <LinkButton onClick={onOpen}>
-          Full routine <ArrowRightIcon />
-        </LinkButton>
-      </div>
+      </p>
     </div>
   );
 }
 
 const REASON = {
   flagged: { label: 'Flagged', className: 'text-flag' },
-  focus: { label: 'Week focus', className: 'text-accent' },
+  focus: { label: 'Focus', className: 'text-accent' },
   next: { label: 'High weight', className: 'text-highlight-ink' },
 } as const;
 
@@ -544,78 +641,71 @@ function StudyList({
   suggestions,
   progress,
   lookups,
-  doneToday,
   onAdvance,
   onOpenPart,
 }: {
   suggestions: Suggestion[];
   progress: ProgressMap;
   lookups: Lookups;
-  doneToday: number;
   onAdvance: (id: string) => void;
   onOpenPart: (id: string) => void;
 }) {
+  if (suggestions.length === 0) {
+    return (
+      <p className="text-sm text-ink-muted">
+        Everything open has been started. Finish a Part to unlock the next one.
+      </p>
+    );
+  }
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Study today</p>
-        <p className="text-xs text-ink-muted">
-          <span className="tnum font-semibold text-ink">{doneToday}</span> new item{doneToday === 1 ? '' : 's'} today
-        </p>
-      </div>
-
-      {suggestions.length === 0 ? (
-        <p className="mt-3 text-sm text-ink-muted">
-          Everything open has been started. Finish a Part to unlock the next one.
-        </p>
-      ) : (
-        <ul className="mt-2 divide-y divide-line-soft">
-          {suggestions.map(({ item, reason }) => {
-            const m = masteryOf(progress, item.id);
-            const next = MASTERY_LABELS[Math.min(3, m + 1) as 1 | 2 | 3];
-            const subject = lookups.subjectById.get(item.subjectId);
-            const r = REASON[reason];
-            return (
-              <li key={item.id} className="flex items-start gap-3 py-2.5">
-                <button
-                  onClick={() => onAdvance(item.id)}
-                  aria-label={`Mark “${item.text}” as ${next}`}
-                  title={`Mark as ${next}`}
-                  className="pressable mt-0.5 grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-2 border-dashed border-line text-transparent hover:border-solid hover:border-accent hover:text-accent"
-                >
-                  <CheckIcon />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <button
-                    onClick={() => onOpenPart(item.partId)}
-                    className="line-clamp-2 cursor-pointer text-left text-sm leading-snug text-ink hover:text-accent"
-                  >
-                    {item.text}
-                  </button>
-                  <p className="mt-0.5 text-[11px] text-ink-muted">
-                    <span className={`font-semibold ${r.className}`}>
-                      {reason === 'flagged' && <FlagIcon filled className="mr-0.5 inline size-3 align-[-2px]" />}
-                      {r.label}
-                    </span>
-                    {' · '}
-                    {subject?.shortName} · {item.ref}
-                    {m > 0 && ` · ${MASTERY_LABELS[m]}`}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+    <ul className="-my-2 divide-y divide-line-soft" aria-label="Study today">
+      {suggestions.map(({ item, reason }) => {
+        const m = masteryOf(progress, item.id);
+        const next = MASTERY_LABELS[Math.min(3, m + 1) as 1 | 2 | 3];
+        const subject = lookups.subjectById.get(item.subjectId);
+        const r = REASON[reason];
+        return (
+          <li key={item.id} className="flex items-center gap-3 py-1.5">
+            <button
+              onClick={() => onAdvance(item.id)}
+              aria-label={`Mark “${item.text}” as ${next}`}
+              title={`Mark as ${next}`}
+              className="pressable grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-2 border-dashed border-line text-transparent hover:border-solid hover:border-accent hover:text-accent"
+            >
+              <CheckIcon />
+            </button>
+            <div className="min-w-0 flex-1">
+              <button
+                onClick={() => onOpenPart(item.partId)}
+                title={item.text}
+                className="block w-full cursor-pointer truncate text-left text-sm text-ink hover:text-accent"
+              >
+                {item.text}
+              </button>
+              <p className="truncate text-[11px] text-ink-muted">
+                <span className={`font-semibold ${r.className}`}>
+                  {reason === 'flagged' && <FlagIcon filled className="mr-0.5 inline size-3 align-[-2px]" />}
+                  {r.label}
+                </span>
+                {' · '}
+                {subject?.shortName} · {item.ref}
+                {m > 0 && ` · ${MASTERY_LABELS[m]}`}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-// --- heatmap ------------------------------------------------------------------
+// --- row 3: activity --------------------------------------------------------
 
 const HEAT_BG = ['bg-heat-0', 'bg-heat-1', 'bg-heat-2', 'bg-heat-3', 'bg-heat-4'] as const;
 
-function Heatmap({ events, now, today }: { events: StudyEvent[]; now: Date; today: string }) {
+/** The distribution heatmap (design.md 8.2), sized as a strip rather than a
+ *  feature: small fixed cells, with the three numbers that matter beside it. */
+function Activity({ events, now, today }: { events: StudyEvent[]; now: Date; today: string }) {
   const weeks = useMemo(() => heatmapWeeks(events, HEAT_WEEKS, now), [events, today]);
   const cells = weeks.flat().filter((c) => !c.future);
   const studyDays = cells.filter((c) => c.count > 0).length;
@@ -637,25 +727,33 @@ function Heatmap({ events, now, today }: { events: StudyEvent[]; now: Date; toda
   };
 
   return (
-    <section className="card p-6" aria-labelledby="heat-title">
+    <section className="card flex min-w-0 flex-col p-4 lg:col-span-8" aria-labelledby="heat-title">
       <CardHeader
         id="heat-title"
         icon={<CalendarGlyph />}
         title="Study activity"
-        kicker={`Last ${HEAT_WEEKS} weeks · shows how evenly the work is spread`}
+        action={
+          <span className="hidden items-center gap-1.5 text-[10px] text-ink-muted sm:inline-flex" aria-hidden="true">
+            Less
+            {HEAT_LEVELS.map((l, i) => (
+              <span key={l} title={`${l} actions`} className={`inline-block size-2.5 rounded-[3px] ${HEAT_BG[i]}`} />
+            ))}
+            More
+          </span>
+        }
       />
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_13rem]">
-        <div className="overflow-x-auto">
+      <div className="mt-3 flex flex-1 items-center justify-between gap-6">
+        <div className="min-w-0 overflow-x-auto">
           <div
             role="img"
             aria-label={`${studyDays} study days and ${actions} actions in the last ${HEAT_WEEKS} weeks. Busiest weekday: ${busiest}.`}
-            className="grid w-full min-w-[34rem] gap-[3px]"
-            style={{ gridTemplateColumns: `2rem repeat(${HEAT_WEEKS}, minmax(0, 1fr))` }}
+            className="grid w-max gap-[3px]"
+            style={{ gridTemplateColumns: `1.75rem repeat(${HEAT_WEEKS}, 0.75rem)` }}
           >
             <span />
             {weeks.map((_, i) => (
-              <span key={i} className="h-4 overflow-visible whitespace-nowrap text-[10px] leading-4 text-ink-muted" aria-hidden="true">
+              <span key={i} className="h-3.5 overflow-visible whitespace-nowrap text-[10px] leading-3 text-ink-muted" aria-hidden="true">
                 {monthLabel(i)}
               </span>
             ))}
@@ -663,22 +761,12 @@ function Heatmap({ events, now, today }: { events: StudyEvent[]; now: Date; toda
               <HeatRow key={label} label={label} row={row} weeks={weeks} today={today} />
             ))}
           </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted" aria-hidden="true">
-            <span>Actions per day:</span>
-            {HEAT_LEVELS.map((l, i) => (
-              <span key={l} className="inline-flex items-center gap-1">
-                <span className={`inline-block size-3 rounded-[3px] ${HEAT_BG[i]}`} />
-                {l}
-              </span>
-            ))}
-          </div>
         </div>
 
-        <dl className="grid grid-cols-3 gap-3 lg:grid-cols-1 lg:grid-rows-3">
-          <HeatStat label="Study days" value={String(studyDays)} sub={`of ${cells.length}`} />
-          <HeatStat label="This week" value={String(thisWeek)} sub="days so far" />
-          <HeatStat label="Busiest day" value={busiest} sub={peak > 0 ? `${peak} actions` : 'no activity yet'} />
+        <dl className="grid shrink-0 grid-cols-1 gap-1.5 text-right">
+          <HeatStat label="Study days" value={String(studyDays)} />
+          <HeatStat label="This week" value={String(thisWeek)} />
+          <HeatStat label="Busiest" value={busiest} />
         </dl>
       </div>
 
@@ -719,7 +807,7 @@ function HeatRow({
 }) {
   return (
     <>
-      <span className="text-[10px] leading-none text-ink-muted self-center" aria-hidden="true">
+      <span className="self-center text-[10px] leading-none text-ink-muted" aria-hidden="true">
         {row % 2 === 0 ? label : ''}
       </span>
       {weeks.map((col) => {
@@ -732,7 +820,7 @@ function HeatRow({
                 ? undefined
                 : `${new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}: ${c.count} action${c.count === 1 ? '' : 's'}`
             }
-            className={`aspect-square w-full rounded-[4px] ${
+            className={`size-3 rounded-[3px] ${
               c.future ? 'border border-dashed border-line-soft' : HEAT_BG[c.level]
             } ${c.date === today ? 'ring-2 ring-node ring-offset-1 ring-offset-raised' : ''}`}
           />
@@ -742,19 +830,18 @@ function HeatRow({
   );
 }
 
-function HeatStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+function HeatStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col justify-center rounded-tile border border-line-soft p-3">
-      <dt className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</dt>
-      <dd className="tnum mt-1 font-display text-2xl leading-none text-heading">{value}</dd>
-      <dd className="mt-1 text-[11px] text-ink-muted">{sub}</dd>
+    <div>
+      <dt className="text-[10px] uppercase tracking-wide text-ink-muted">{label}</dt>
+      <dd className="tnum font-display text-base leading-tight text-heading">{value}</dd>
     </div>
   );
 }
 
 function CalendarGlyph() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="currentColor">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
       {[4, 10, 16].flatMap((x) =>
         [4, 10, 16].map((y) => (
           <rect key={`${x}${y}`} x={x} y={y} width="4.5" height="4.5" rx="1.2" opacity={(x + y) % 12 === 8 ? 1 : 0.45} />
@@ -764,86 +851,7 @@ function CalendarGlyph() {
   );
 }
 
-// --- pace ---------------------------------------------------------------------
-
-function PaceCard({ pace }: { pace: ReturnType<typeof paceOf> }) {
-  const target = pace.weekTarget;
-  const frac = target ? Math.min(1, pace.weekDone / target) : 0;
-  const expFrac = target && pace.weekExpected !== null ? Math.min(1, pace.weekExpected / target) : 0;
-  const behindBy = pace.weekExpected !== null ? Math.max(0, pace.weekExpected - pace.weekDone) : 0;
-
-  const pill =
-    pace.status === 'ahead'
-      ? { text: 'Ahead of pace', icon: <CheckIcon />, className: 'bg-wash-sage text-success' }
-      : pace.status === 'on-track'
-        ? { text: 'On pace', icon: <CheckIcon />, className: 'bg-wash-sage text-accent' }
-        : pace.status === 'behind'
-          ? { text: `${behindBy} behind today’s pace`, icon: <AlertIcon className="size-3.5" />, className: 'bg-sunken/60 text-flag' }
-          : { text: 'Review weeks — no item target', icon: null, className: 'bg-sunken/60 text-ink-muted' };
-
-  return (
-    <section className="card flex flex-col p-6" aria-labelledby="pace-title">
-      <CardHeader
-        id="pace-title"
-        icon={<TargetIcon />}
-        title="This week’s pace"
-        kicker={pace.week ? `Week ${pace.week.week} · ${pace.week.phase}` : undefined}
-      />
-
-      <div className="mt-5 flex items-end justify-between gap-3">
-        <p className="tnum font-display text-4xl leading-none text-heading">
-          {pace.weekDone}
-          {target !== null && <span className="ml-1 font-sans text-base text-ink-muted">/ {target}</span>}
-        </p>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${pill.className}`}>
-          {pill.icon}
-          {pill.text}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-ink-muted">new items this week</p>
-
-      {target !== null && (
-        <div className="relative mt-3">
-          <div
-            className="meter-track h-2.5"
-            role="progressbar"
-            aria-label="Weekly target"
-            aria-valuenow={Math.round(frac * 100)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div className="meter-fill" style={{ width: `${frac * 100}%` }} />
-          </div>
-          {/* Where you should be by the end of today. */}
-          <span
-            aria-hidden="true"
-            className="absolute -top-1 h-4.5 w-0.5 rounded bg-ink"
-            style={{ left: `calc(${expFrac * 100}% - 1px)` }}
-          />
-          <p className="mt-1.5 text-[11px] text-ink-muted">
-            Marker: where the week should be by tonight ({pace.weekExpected})
-          </p>
-        </div>
-      )}
-
-      <div aria-hidden="true" className="min-h-5 flex-1" />
-      <dl className="grid grid-cols-2 gap-3 border-t border-line-soft pt-4">
-        <div>
-          <dt className="text-[11px] uppercase tracking-wide text-ink-muted">Needed per day</dt>
-          <dd className="tnum mt-1 font-display text-xl text-heading">{pace.perDayNeeded}</dd>
-          <dd className="text-[11px] text-ink-muted">to see all before Day 1</dd>
-        </div>
-        <div>
-          <dt className="text-[11px] uppercase tracking-wide text-ink-muted">Your last 14 days</dt>
-          <dd className="tnum mt-1 font-display text-xl text-heading">{pace.recentPerDay.toFixed(1)}</dd>
-          <dd className="text-[11px] text-ink-muted">new items per day</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-// --- countdown ----------------------------------------------------------------
+// --- countdown tile -----------------------------------------------------------
 
 /**
  * One split-flap tile. Holds the OUTGOING value itself, so a tile whose number
@@ -862,7 +870,7 @@ function FlipTile({ value }: { value: string }) {
   const flipping = value !== shown;
 
   return (
-    <div className="flip h-[3.75rem] w-[3.5rem] sm:h-[5rem] sm:w-[4.75rem]" aria-hidden="true">
+    <div className="flip flip-sm h-11 w-10">
       <div className="flip-half flip-half-top">
         <span className="flip-glyph">{value}</span>
       </div>
@@ -883,61 +891,20 @@ function FlipTile({ value }: { value: string }) {
   );
 }
 
-const COUNTDOWN_UNITS = [
-  { key: 'months', label: 'Months' },
-  { key: 'weeks', label: 'Weeks' },
-  { key: 'days', label: 'Days' },
-  { key: 'hours', label: 'Hours' },
-  { key: 'minutes', label: 'Minutes' },
-  { key: 'seconds', label: 'Seconds' },
-] as const;
-
-/** The live countdown. Holds its own one-second tick so the page does not
- *  re-render every second. */
-function ExamCountdown({ target }: { target: string }) {
-  const at = useMemo(() => localMidnight(target), [target]);
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const left = countdownTo(at, now);
-
-  return (
-    <div>
-      <div className="mt-4 flex flex-wrap items-start justify-center gap-2 sm:gap-3">
-        {COUNTDOWN_UNITS.map((u) => (
-          <div key={u.key} className="text-center">
-            <FlipTile value={String(left[u.key]).padStart(2, '0')} />
-            <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-muted">{u.label}</p>
-          </div>
-        ))}
-      </div>
-      <p className="sr-only" aria-live="off">
-        {left.reached
-          ? 'Day 1 has arrived.'
-          : `${left.months} months, ${left.weeks} weeks, ${left.days} days, ${left.hours} hours, ${left.minutes} minutes and ${left.seconds} seconds until Day 1.`}
-      </p>
-    </div>
-  );
-}
-
 // --- TEMPORARY: stage preview -------------------------------------------------
 
 /**
  * Forces the daisy to any of its seven stages so the plates can be reviewed
- * without ticking 1,489 items. Changes nothing that is stored. Folded away by
- * default so it does not compete with the card.
+ * without ticking 1,489 items. Changes nothing that is stored. Folded away
+ * below the dashboard so it takes no room on the screen.
  */
 function StagePreview({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
   return (
-    <details className="group mt-4 border-t border-line-soft pt-3">
-      <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-ink-muted hover:text-accent">
-        Preview stages <span className="font-normal normal-case tracking-normal">· temporary</span>
+    <details className="px-1 pt-2">
+      <summary className="w-fit cursor-pointer text-[11px] text-ink-muted hover:text-accent">
+        Preview daisy stages (temporary)
       </summary>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {STAGES.map((s, i) => (
           <button
             key={s.roman}

@@ -652,7 +652,7 @@ function Shell({
         id="main"
         ref={main}
         tabIndex={-1}
-        className="mx-auto w-full max-w-7xl px-4 pt-6 outline-none sm:px-6 lg:px-8"
+        className="mx-auto w-full max-w-7xl px-4 pt-4 outline-none sm:px-6 lg:px-8"
       >
         {children}
       </main>
