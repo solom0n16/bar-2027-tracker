@@ -145,7 +145,22 @@ export const AlertIcon = ({ className = 'size-5' }: P) => (
   </Svg>
 );
 
-export const PlayIcon = ({ className = 'size-4' }: P) => (
+export const HourglassIcon = ({ className = 'size-5' }: P) => (
+  <Svg className={className}>
+    <path d="M6.5 3.5h11M6.5 20.5h11" />
+    <path d="M7.5 3.5v2.2a4.5 4.5 0 0 0 1.8 3.6L12 11.5l2.7-2.2a4.5 4.5 0 0 0 1.8-3.6V3.5" />
+    <path d="M7.5 20.5v-2.2a4.5 4.5 0 0 1 1.8-3.6L12 12.5l2.7 2.2a4.5 4.5 0 0 1 1.8 3.6v2.2" />
+  </Svg>
+);
+
+export const LeafIcon = ({ className = 'size-5' }: P) => (
+  <Svg className={className}>
+    <path d="M5 19c0-8 5.5-13.5 14-14 .3 8.6-5.2 14-13 14z" />
+    <path d="M5 19l7.5-7.5" />
+  </Svg>
+);
+
+export const PlayIcon =({ className = 'size-4' }: P) => (
   <Svg className={className} fill="currentColor" strokeWidth={1.4}>
     <path d="M8 5.5v13l10.5-6.5z" />
   </Svg>

@@ -71,7 +71,7 @@ export default function ScheduleTables({ schedule, onChange, today, nowRowId = n
         )}
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         {(Object.keys(GROUP_LABELS) as ScheduleGroup[]).map((group) => (
           <GroupTable
             key={group}
@@ -110,7 +110,7 @@ function GroupTable({
   onMove: (id: string, delta: number) => void;
 }) {
   return (
-    <div className="card overflow-hidden p-0">
+    <div className="card flex flex-col overflow-hidden p-0">
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-5 py-4">
         <div className="flex items-center gap-2">
           <h3 className="font-display text-lg text-heading">{GROUP_LABELS[group]}</h3>
@@ -127,11 +127,11 @@ function GroupTable({
       </div>
 
       {rows.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-ink-muted">
+        <p className="flex-1 px-4 py-8 text-center text-sm text-ink-muted">
           Nothing here yet. Add a block to start shaping the day.
         </p>
       ) : (
-        <ul className="relative py-2">
+        <ul className="relative flex-1 py-2">
           {/* The timeline spine the row dots sit on. */}
           <span aria-hidden="true" className="absolute bottom-5 left-[1.25rem] top-5 w-px bg-line-soft" />
           {rows.map((r, i) => (
@@ -278,7 +278,7 @@ function RowEditor({
           placeholder="Add a note"
           label="Notes"
           multiline
-          className="text-xs leading-relaxed text-ink-muted"
+          className="text-xs leading-relaxed text-ink-muted placeholder:text-transparent! group-hover:placeholder:text-ink-muted/60! focus:placeholder:text-ink-muted/60!"
         />
       </div>
 

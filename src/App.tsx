@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Daisy from './Daisy';
 import Dashboard from './Dashboard';
 import ScheduleTables from './Schedule';
 import { useNow, useProgress, useRoute, useSchedule, useScrolled, type Route } from './hooks';
@@ -20,10 +19,11 @@ import {
   type SearchHit,
   type Subject,
 } from './lib/progress';
-import { daysStudiedWithin, studyDates } from './lib/events';
-import { STAGES, peakWeightedCoverage, ratchetedStage } from './lib/daisy';
+import { daysStudiedWithin } from './lib/events';
+import { peakWeightedCoverage, ratchetedStage } from './lib/daisy';
 import { routineNow } from './lib/dashboard';
 import {
+  ArrowRightIcon,
   BackIcon,
   BookIcon,
   CalendarIcon,
@@ -35,24 +35,7 @@ import {
   MinusIcon,
   SearchIcon,
 } from './Icons';
-import { PanelBar, count, pct, step, type Lookups, type Syllabus } from './ui';
-
-/**
- * Where each subject card sits around the plant, in subject order.
- *
- * Points on an ellipse that is never drawn — six positions 60 degrees apart
- * starting upper-right so the ring reads clockwise. Percentages rather than
- * pixels so the arrangement survives any container width; the whole thing
- * collapses to a plain grid below `lg`.
- */
-const CARD_POS = [
-  { left: '68%', top: '14%' }, // Political      — upper right
-  { left: '82%', top: '50%' }, // Commercial     — right
-  { left: '68%', top: '86%' }, // Civil          — lower right
-  { left: '32%', top: '86%' }, // Labor          — lower left
-  { left: '18%', top: '50%' }, // Criminal       — left
-  { left: '32%', top: '14%' }, // Remedial       — upper left
-];
+import { PageHeader, PanelBar, count, pct, step, type Lookups, type Syllabus } from './ui';
 
 /**
  * TEMPORARY — stage preview.
@@ -216,6 +199,8 @@ export default function App() {
         }}
         onAdvance={advance}
         go={go}
+        preview={preview}
+        setPreview={setPreview}
       />
     );
   } else if (route === 'subjects') {
@@ -231,13 +216,9 @@ export default function App() {
         partId={partId}
         setSubjectId={setSubjectId}
         setPartId={setPartId}
-        coverage={shownCoverage}
-        depth={shownDepth}
-        stageName={stage.name}
-        stage={stage}
+        coverage={totalCoverage}
+        depth={totalDepth}
         touched={touched}
-        preview={preview}
-        setPreview={setPreview}
       />
     );
   } else {
@@ -332,16 +313,6 @@ export default function App() {
 
 // --- pages ------------------------------------------------------------------
 
-function PageHeader({ kicker, title, sub }: { kicker: string; title: string; sub?: string }) {
-  return (
-    <header style={step(0)}>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{kicker}</p>
-      <h1 className="mt-1 font-display text-3xl leading-tight text-heading">{title}</h1>
-      {sub && <p className="mt-1 text-sm text-ink-muted">{sub}</p>}
-    </header>
-  );
-}
-
 function SubjectsPage({
   data,
   lookups,
@@ -353,13 +324,9 @@ function SubjectsPage({
   partId,
   setSubjectId,
   setPartId,
-  coverage: shownCoverage,
-  depth: shownDepth,
-  stage,
-  stageName,
+  coverage: totalCoverage,
+  depth: totalDepth,
   touched,
-  preview,
-  setPreview,
 }: {
   data: Syllabus;
   lookups: Lookups;
@@ -373,62 +340,42 @@ function SubjectsPage({
   setPartId: (id: string | null) => void;
   coverage: number;
   depth: number;
-  stage: ReturnType<typeof ratchetedStage>;
-  stageName: string;
   touched: number;
-  preview: number | null;
-  setPreview: (v: number | null) => void;
 }) {
   const subject = subjectId ? lookups.subjectById.get(subjectId) ?? null : null;
-  const daysStudied = daysStudiedWithin(events, 30);
-  const totalStudyDays = studyDates(events).length;
   const partsOpen = [...lockStates.values()].filter((s) => s !== 'locked').length;
 
   return (
-    <div className="stagger space-y-5">
+    <div className="stagger space-y-6">
       <PageHeader
-        kicker={`${count(data.items.length)} items · ${data.parts.length} Parts`}
+        kicker={`${count(data.items.length)} items · ${data.parts.length} Parts · 6 subjects`}
         title="Subjects"
         sub="Pick a subject to see its Parts. A Part opens once the one before it has been read."
       />
 
-      {/* --- the plant, with the subjects around it ------------------------
-          Two layers on one z-axis. Picking a subject pushes the overview back
-          and brings that subject forward through it. */}
-      <section className="dive relative lg:h-[42rem]" style={step(1)}>
-        <div className={`dive-layer lg:absolute lg:inset-0 ${subject ? 'dive-receded' : ''}`}>
-          <div className="relative h-full">
-            <div className="mx-auto w-full max-w-xs lg:absolute lg:left-1/2 lg:top-1/2 lg:w-72 lg:max-w-none lg:-translate-x-1/2 lg:-translate-y-1/2">
-              <Daisy stage={stage} coverage={shownCoverage} depth={shownDepth} compact />
-            </div>
+      {/* --- six equal tiles: the two numbers that decide passing, then counts */}
+      <section
+        aria-label="Overall progress"
+        className="card grid grid-cols-2 divide-line-soft overflow-hidden p-0 sm:grid-cols-3 lg:grid-cols-6 lg:divide-x"
+        style={step(1)}
+      >
+        <SummaryTile label="Weighted coverage" value={pct(totalCoverage)} bar={totalCoverage} />
+        <SummaryTile label="Mastery depth" value={pct(totalDepth)} bar={totalDepth} muted />
+        <SummaryTile label="Items seen" value={count(touched)} sub={`of ${count(data.items.length)}`} />
+        <SummaryTile label="Parts open" value={count(partsOpen)} sub={`of ${data.parts.length}`} />
+        <SummaryTile label="Flagged" value={count(flags.size)} sub="for review" />
+        <SummaryTile label="Days studied" value={count(daysStudiedWithin(events, 30))} sub="of the last 30" />
+      </section>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:mt-0 lg:block">
-              {data.subjects.map((s) => {
-                const items = lookups.itemsBySubject.get(s.id) ?? [];
-                const openParts = data.parts.filter(
-                  (p) => p.subjectId === s.id && lockStates.get(p.id) !== 'locked'
-                ).length;
-                return (
-                  <SubjectCard
-                    key={s.id}
-                    subject={s}
-                    pos={CARD_POS[s.seq - 1] ?? CARD_POS[0]}
-                    coverage={coverage(items, progress)}
-                    depth={depth(items, progress)}
-                    openParts={openParts}
-                    onSelect={() => {
-                      setSubjectId(s.id);
-                      setPartId(null);
-                    }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {totalCoverage > 0.5 && totalDepth < totalCoverage / 2 && (
+        <p className="rounded-tile border border-flag/30 bg-wash-sage px-4 py-3 text-xs leading-relaxed text-flag">
+          Coverage is running well ahead of depth — a lot has been seen, less can be answered.
+        </p>
+      )}
 
-        {subject && (
-          <div className="dive-arriving absolute inset-0 grid place-items-center">
+      {subject ? (
+        <div className="dive" style={step(2)}>
+          <div className="dive-arriving">
             <SubjectDetail
               subject={subject}
               parts={data.parts.filter((p) => p.subjectId === subject.id)}
@@ -444,41 +391,68 @@ function SubjectsPage({
               }}
             />
           </div>
-        )}
-      </section>
+        </div>
+      ) : (
+        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" style={step(2)}>
+          {data.subjects.map((s) => {
+            const items = lookups.itemsBySubject.get(s.id) ?? [];
+            const own = data.parts.filter((p) => p.subjectId === s.id);
+            return (
+              <li key={s.id}>
+                <SubjectCard
+                  subject={s}
+                  parts={own}
+                  lockStates={lockStates}
+                  progress={progress}
+                  coverage={coverage(items, progress)}
+                  depth={depth(items, progress)}
+                  onSelect={() => {
+                    setSubjectId(s.id);
+                    setPartId(null);
+                  }}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-      {/* --- the two numbers that decide passing --------------------------- */}
-      <section className="card p-6 sm:p-7" style={step(2)}>
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start">
-          <div className="space-y-6">
-            <Meter label="Weighted coverage" hint="Touched at least once" value={shownCoverage} />
-            <Meter label="Mastery depth" hint="How well you actually know it" value={shownDepth} />
-
-            {shownCoverage > 0.5 && shownDepth < shownCoverage / 2 && (
-              <p className="rounded-tile border border-flag/30 bg-wash-sage px-4 py-3 text-xs leading-relaxed text-flag">
-                The plant is growing faster than it is flowering. Coverage is running well ahead of
-                depth — a lot has been seen, less can be answered.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-              <Stat label="Touched" value={touched} sub={`of ${count(data.items.length)} items`} />
-              <Stat label="Parts open" value={partsOpen} sub={`of ${data.parts.length}`} />
-              <Stat label="Flagged" value={flags.size} sub="needs review" />
-              <Stat label="Days studied" value={daysStudied} sub="of the last 30" accent />
-              <Stat
-                label="Study days"
-                value={totalStudyDays}
-                sub={`${count(events.length)} event${events.length === 1 ? '' : 's'}`}
-              />
-            </div>
-
-            <StagePreview value={preview} onChange={setPreview} stageName={stageName} />
+function SummaryTile({
+  label,
+  value,
+  sub,
+  bar,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  bar?: number;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex flex-col border-b border-line-soft p-5 lg:border-b-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</p>
+      <p className="tnum mt-2 font-display text-3xl leading-none text-heading">{value}</p>
+      {bar !== undefined ? (
+        <div className="mt-auto pt-3">
+          <div
+            className="meter-track h-1.5"
+            role="progressbar"
+            aria-label={label}
+            aria-valuenow={Math.round(bar * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="meter-fill" style={{ width: `${bar * 100}%`, opacity: muted ? 0.55 : 1 }} />
           </div>
         </div>
-      </section>
+      ) : (
+        <p className="mt-auto pt-2 text-xs text-ink-muted">{sub}</p>
+      )}
     </div>
   );
 }
@@ -519,7 +493,7 @@ function SchedulePage({
         <h2 id="exam-days" className="mb-3 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
           Exam days
         </h2>
-        <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {examDays.map((d) => {
             const left = daysUntil(d.date);
             return (
@@ -911,105 +885,86 @@ function ItemDrawer({
   );
 }
 
-// --- TEMPORARY --------------------------------------------------------------
-
-function StagePreview({
-  value,
-  onChange,
-  stageName,
-}: {
-  value: number | null;
-  onChange: (v: number | null) => void;
-  stageName: string;
-}) {
-  return (
-    <div className="rounded-tile border border-dashed border-flag/60 bg-wash-sage/40 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-flag">
-        Temporary · preview stages
-      </p>
-      <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-        Currently showing <span className="font-semibold text-ink">{stageName}</span>. Changes
-        nothing that is stored.
-      </p>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {STAGES.map((s, i) => (
-          <button
-            key={s.roman}
-            onClick={() => onChange(value === i ? null : i)}
-            aria-pressed={value === i}
-            title={`${s.name} (${s.band})`}
-            className={`pressable rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-              value === i
-                ? 'border-accent bg-accent-solid text-on-accent'
-                : 'border-line-soft bg-raised text-ink hover:border-line'
-            }`}
-          >
-            {s.roman}
-          </button>
-        ))}
-        <button
-          onClick={() => onChange(null)}
-          className="pressable rounded-full border border-line-soft px-2.5 py-1 text-[11px] text-ink-muted hover:border-line"
-        >
-          Live
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // --- pieces -----------------------------------------------------------------
 
 /**
- * A subject, at rest in the ring. Opening one dives into <SubjectDetail/>,
- * which has room for the Parts without shoving its neighbours around.
+ * One subject in the grid. Every card has the same four bands — title, facts,
+ * the two bars, and a Parts strip on the bottom edge — so a row of three reads
+ * as one aligned table rather than three differently-shaped boxes.
  */
 function SubjectCard({
   subject,
-  pos,
+  parts,
+  lockStates,
+  progress,
   coverage: cov,
   depth: dep,
-  openParts,
   onSelect,
 }: {
   subject: Subject;
-  pos: { left: string; top: string };
+  parts: Part[];
+  lockStates: Map<string, LockState>;
+  progress: ProgressMap;
   coverage: number;
   depth: number;
-  openParts: number;
   onSelect: () => void;
 }) {
+  const sorted = [...parts].sort((a, b) => a.seq - b.seq);
+  const open = sorted.filter((p) => lockStates.get(p.id) !== 'locked').length;
   return (
     <button
       onClick={onSelect}
-      // left/top are inert until `lg:absolute` takes effect, so one set of
-      // styles serves both the grid and the ring.
-      style={pos}
-      className="card card-interactive w-full cursor-pointer p-4 text-left lg:absolute lg:w-[16.5rem] lg:-translate-x-1/2 lg:-translate-y-1/2"
+      className="card card-interactive group flex h-full w-full cursor-pointer flex-col p-5 text-left"
     >
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-display text-base leading-snug text-heading">
-          {subject.shortName}
-        </span>
-        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-accent">
-          {Math.round(subject.weight * 100)}%
+      <div className="flex items-start justify-between gap-3">
+        <span className="font-display text-lg leading-snug text-heading">{subject.shortName}</span>
+        <span className="shrink-0 rounded-full bg-wash-sage px-2.5 py-1 text-[11px] font-semibold text-accent">
+          {Math.round(subject.weight * 100)}% of grade
         </span>
       </div>
-
-      <p className="mt-1 text-[11px] text-ink-muted">
-        {count(subject.itemCount)} items · {subject.partIds.length} Parts, {openParts} open
+      <p className="mt-1 text-xs text-ink-muted">
+        Day {subject.examDay} {subject.examSlot} · {count(subject.itemCount)} items · {parts.length} Parts
       </p>
 
       {/* Coverage and depth are never shown apart (AC-11). */}
-      <div className="mt-3 space-y-2">
+      <div className="mt-4 space-y-2">
         <PanelBar label="Seen" value={cov} />
         <PanelBar label="Deep" value={dep} muted />
+      </div>
+
+      <div className="mt-auto pt-4">
+        <div className="flex items-center justify-between border-t border-line-soft pt-3 text-[11px] text-ink-muted">
+          <span>
+            <span className="font-semibold text-ink">{open}</span> of {parts.length} Parts open
+          </span>
+          <span className="inline-flex items-center gap-1 font-semibold text-accent opacity-70 transition-opacity group-hover:opacity-100">
+            Open <ArrowRightIcon />
+          </span>
+        </div>
+        {/* One segment per Part: filled by mastery, dashed when locked. */}
+        <div aria-hidden="true" className="mt-2 flex gap-[3px]">
+          {sorted.map((p) => {
+            const locked = lockStates.get(p.id) === 'locked';
+            return (
+              <span
+                key={p.id}
+                className={`relative h-1.5 flex-1 overflow-hidden rounded-full ${
+                  locked ? 'border border-dashed border-line-soft' : 'bg-sunken'
+                }`}
+              >
+                {!locked && (
+                  <span className="meter-fill absolute inset-y-0 left-0" style={{ width: `${partFill(p, progress) * 100}%` }} />
+                )}
+              </span>
+            );
+          })}
+        </div>
       </div>
     </button>
   );
 }
 
-/** One level in: the subject, with all of its Parts. */
+/** One level in: the subject, with all of its Parts, as two balanced columns. */
 function SubjectDetail({
   subject,
   parts,
@@ -1031,38 +986,41 @@ function SubjectDetail({
   onSelectPart: (id: string) => void;
   onBack: () => void;
 }) {
+  const sorted = [...parts].sort((a, b) => a.seq - b.seq);
   return (
-    <div className="card w-full max-w-2xl p-5 shadow-e3 sm:p-7">
-      <button
-        onClick={onBack}
-        className="pressable inline-flex items-center gap-1.5 text-xs font-medium text-accent"
-      >
-        <BackIcon />
-        All subjects
-      </button>
+    <section className="card grid overflow-hidden p-0 lg:grid-cols-[22rem_minmax(0,1fr)]" aria-labelledby="subject-title">
+      <div className="flex flex-col border-b border-line-soft bg-wash-sage/50 p-6 lg:border-b-0 lg:border-r">
+        <button
+          onClick={onBack}
+          className="pressable inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 -ml-2 text-xs font-semibold text-accent hover:bg-raised"
+        >
+          <BackIcon />
+          All subjects
+        </button>
 
-      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="font-display text-2xl leading-snug text-heading">{subject.name}</h2>
-        <span className="text-xs font-semibold uppercase tracking-wider text-accent">
-          {Math.round(subject.weight * 100)}% of grade
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-ink-muted">
-        {count(subject.itemCount)} items · {parts.length} Parts · Day {subject.examDay}{' '}
-        {subject.examSlot}
-      </p>
-
-      <div className="mt-4 space-y-2.5">
-        <PanelBar label="Seen" value={cov} />
-        <PanelBar label="Deep" value={dep} muted />
-      </div>
-
-      <div className="mt-5 border-t border-line-soft pt-4">
-        <p className="text-[11px] uppercase tracking-wider text-ink-muted">
-          Parts <span className="normal-case tracking-normal">· bar is mastery, padlock is locked</span>
+        <h2 id="subject-title" className="mt-4 font-display text-2xl leading-snug text-heading">
+          {subject.name}
+        </h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          {Math.round(subject.weight * 100)}% of grade · Day {subject.examDay} {subject.examSlot} ·{' '}
+          {count(subject.itemCount)} items
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {parts.map((p) => (
+
+        <div className="mt-auto space-y-2.5 pt-6">
+          <PanelBar label="Seen" value={cov} />
+          <PanelBar label="Deep" value={dep} muted />
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+            {parts.length} Parts
+          </h3>
+          <p className="text-[11px] text-ink-muted">Bar is mastery · number is items · pick one to study</p>
+        </div>
+        <div className="mt-4 grid gap-2 xl:grid-cols-2">
+          {sorted.map((p) => (
             <PartChip
               key={p.id}
               part={p}
@@ -1074,13 +1032,12 @@ function SubjectDetail({
           ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
-
 /**
- * One Part. State is carried by a dashed border plus a padlock, and progress by
- * the bar along the bottom — never by colour alone (AC-27).
+ * One Part as a row. Locked state is carried by a dashed border, a padlock and
+ * the word itself, and progress by a labelled bar — never by colour alone (AC-27).
  */
 function PartChip({
   part,
@@ -1096,83 +1053,43 @@ function PartChip({
   onSelect: () => void;
 }) {
   const locked = state === 'locked';
+  const status = locked ? 'Locked' : state === 'override' ? 'Opened early' : 'Open';
   return (
     <button
       onClick={onSelect}
       aria-pressed={selected}
-      title={`Part ${part.seq}: ${part.title}`}
-      aria-label={`Part ${part.seq}: ${part.title}. ${
-        locked ? 'Locked' : state === 'override' ? 'Opened early' : 'Open'
-      }. ${Math.round(fill * 100)} percent mastered.`}
-      className={`pressable relative grid size-12 place-items-center overflow-hidden rounded-xl border text-sm font-semibold ${
+      aria-label={`Part ${part.seq}: ${part.title}. ${status}. ${Math.round(fill * 100)} percent mastered.`}
+      className={`pressable flex w-full cursor-pointer items-center gap-3 rounded-tile border p-3 text-left ${
         selected
-          ? 'border-accent bg-wash-sage text-accent'
+          ? 'border-accent bg-wash-sage'
           : locked
-            ? 'border-dashed border-line bg-sunken/50 text-ink-muted'
-            : 'border-line-soft bg-raised text-ink hover:border-line hover:shadow-e2'
+            ? 'border-dashed border-line bg-sunken/30 hover:bg-sunken/50'
+            : 'border-line-soft bg-raised hover:border-line hover:shadow-e1'
       }`}
     >
-      <span className="flex items-center gap-0.5 leading-none">
-        {locked && <LockIcon small />}
-        {part.seq}
+      <span
+        aria-hidden="true"
+        className={`grid size-9 shrink-0 place-items-center rounded-lg text-sm font-semibold ${
+          locked ? 'bg-sunken/60 text-ink-muted' : 'bg-wash-sage text-accent'
+        }`}
+      >
+        {locked ? <LockIcon /> : part.seq}
       </span>
-      {state === 'override' && (
-        <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 rounded-full bg-flag" />
-      )}
-      <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1 bg-sunken">
-        <span className="meter-fill block h-full" style={{ width: `${fill * 100}%` }} />
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate text-sm font-medium ${locked ? 'text-ink-muted' : 'text-ink'}`} title={part.title}>
+          Part {part.seq} · {part.title}
+        </span>
+        <span aria-hidden="true" className="mt-1.5 flex items-center gap-2">
+          <span className="meter-track h-1.5 flex-1">
+            <span className="meter-fill block" style={{ width: `${fill * 100}%` }} />
+          </span>
+          <span className="tnum w-24 shrink-0 text-right text-[11px] text-ink-muted">
+            {state === 'override' ? 'Opened early' : locked ? 'Locked' : `${Math.round(fill * 100)}%`} ·{' '}
+            {part.itemCount}
+          </span>
+        </span>
       </span>
     </button>
-  );
-}
-
-function Meter({ label, hint, value }: { label: string; hint: string; value: number }) {
-  return (
-    <div>
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-ink">{label}</p>
-          <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>
-        </div>
-        <p className="tnum font-display text-3xl leading-none text-heading">{pct(value)}</p>
-      </div>
-      <div
-        className="meter-track mt-3 h-2.5"
-        role="progressbar"
-        aria-valuenow={Math.round(value * 100)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={label}
-      >
-        <div className="meter-fill" style={{ width: `${value * 100}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  sub,
-  accent = false,
-}: {
-  label: string;
-  value: number;
-  sub: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-tile border p-3 transition-colors ${
-        accent
-          ? 'border-accent/25 bg-wash-sage'
-          : 'border-line-soft bg-surface/60 hover:bg-wash-warm'
-      }`}
-    >
-      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="tnum mt-1 font-display text-2xl leading-none text-ink">{count(value)}</p>
-      <p className="mt-1 text-[11px] text-ink-muted">{sub}</p>
-    </div>
   );
 }
 

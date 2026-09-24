@@ -28,6 +28,33 @@ export const count = (n: number) => n.toLocaleString('en-GB');
 
 export const step = (i: number) => ({ '--i': i }) as CSSProperties;
 
+/**
+ * The same opening on every page: kicker, title, one line of context, and an
+ * optional block on the right that sits on the title's baseline.
+ */
+export function PageHeader({
+  kicker,
+  title,
+  sub,
+  aside,
+}: {
+  kicker: string;
+  title: string;
+  sub?: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-4" style={step(0)}>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{kicker}</p>
+        <h1 className="mt-1 font-display text-3xl leading-tight text-heading">{title}</h1>
+        {sub && <p className="mt-1 text-sm text-ink-muted">{sub}</p>}
+      </div>
+      {aside}
+    </header>
+  );
+}
+
 /** Card title row: icon chip, title, optional kicker and action on the right. */
 export function CardHeader({
   icon,

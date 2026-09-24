@@ -11,7 +11,7 @@ import {
 } from './lib/progress';
 import { daysStudiedWithin, studyDates, type StudyEvent } from './lib/events';
 import { addDays, countdownTo, localDateOf, localMidnight } from './lib/dates';
-import type { Stage } from './lib/daisy';
+import { STAGES, type Stage } from './lib/daisy';
 import type { Schedule } from './lib/schedule';
 import {
   HEAT_LEVELS,
@@ -36,11 +36,13 @@ import {
   ClockIcon,
   FlagIcon,
   FlameIcon,
+  HourglassIcon,
+  LeafIcon,
   PlayIcon,
   TargetIcon,
   TrophyIcon,
 } from './Icons';
-import { CardHeader, LinkButton, PanelBar, count, step, type Lookups, type Syllabus } from './ui';
+import { CardHeader, LinkButton, PageHeader, PanelBar, count, step, type Lookups, type Syllabus } from './ui';
 
 /**
  * The permanent anchor (design.md 9.1, AC-43). Never rotates.
@@ -72,6 +74,9 @@ interface Props {
   onOpenSubject: (subjectId: string) => void;
   onAdvance: (itemId: string) => void;
   go: (r: Route) => void;
+  /** TEMPORARY stage preview — which stage the daisy is forced to, if any. */
+  preview: number | null;
+  setPreview: (v: number | null) => void;
 }
 
 export default function Dashboard(props: Props) {
@@ -122,7 +127,7 @@ export default function Dashboard(props: Props) {
     bestStreak: streak.best,
     daysStudied30,
     stage: props.stage,
-  });
+  }, 4);
 
   // Continue: the last Part you touched, or the first suggestion's Part.
   const last = lastTouchedItem(events);
@@ -132,74 +137,79 @@ export default function Dashboard(props: Props) {
   const resumeSubject = resumePart ? lookups.subjectById.get(resumePart.subjectId) : undefined;
 
   return (
-    <div className="stagger space-y-5">
-      {/* --- header ------------------------------------------------------- */}
-      <header className="flex flex-wrap items-end justify-between gap-4" style={step(0)}>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-            {pace.week
-              ? `Week ${pace.week.week} of ${data.calendar.length} · ${pace.week.phase}`
-              : 'Bar 2027'}
-          </p>
-          <h1 className="mt-1 font-display text-3xl leading-tight text-heading">{greeting(now)}.</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {focusSubject
-              ? <>This week’s focus is <span className="font-semibold text-ink">{focusSubject.shortName}</span>.</>
-              : pace.week?.focus ?? 'Pick up wherever you like.'}
-          </p>
-        </div>
-
-        {resumePart && resumeSubject && (
-          <button
-            onClick={() => props.onOpenPart(resumePart.id)}
-            className="card card-interactive group flex max-w-md cursor-pointer items-center gap-3 p-3 pr-4 text-left"
-          >
-            <span className="btn-accent grid size-10 shrink-0 place-items-center rounded-full">
-              <PlayIcon />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-accent">
-                {lastItem ? 'Continue where you left off' : 'Start here'}
+    <div className="stagger space-y-6">
+      <PageHeader
+        kicker={
+          pace.week ? `Week ${pace.week.week} of ${data.calendar.length} · ${pace.week.phase}` : 'Bar 2027'
+        }
+        title={`${greeting(now)}.`}
+        sub={
+          focusSubject ? (
+            <>
+              This week’s focus is <span className="font-semibold text-ink">{focusSubject.shortName}</span>.
+            </>
+          ) : (
+            pace.week?.focus ?? 'Pick up wherever you like.'
+          )
+        }
+        aside={
+          resumePart &&
+          resumeSubject && (
+            <button
+              onClick={() => props.onOpenPart(resumePart.id)}
+              className="card card-interactive flex w-full max-w-md cursor-pointer items-center gap-3 p-3 pr-5 text-left sm:w-auto"
+            >
+              <span className="btn-accent grid size-10 shrink-0 place-items-center rounded-full">
+                <PlayIcon />
               </span>
-              <span className="block truncate text-sm font-semibold text-ink">
-                {resumeSubject.shortName} · Part {resumePart.seq}: {resumePart.title}
-              </span>
-              {last && lastItem && (
-                <span className="block text-xs text-ink-muted">
-                  Last touched {relativeDay(last.localDate, today)}
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold uppercase tracking-wider text-accent">
+                  {lastItem ? 'Continue where you left off' : 'Start here'}
                 </span>
-              )}
-            </span>
-          </button>
-        )}
-      </header>
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {resumeSubject.shortName} · Part {resumePart.seq}: {resumePart.title}
+                </span>
+                {last && lastItem && (
+                  <span className="block text-xs text-ink-muted">
+                    Last touched {relativeDay(last.localDate, today)}
+                  </span>
+                )}
+              </span>
+            </button>
+          )
+        }
+      />
+
+      {/* Every row is a 12-column grid split 8 / 4 or 4 / 4 / 4, and every
+          card is a flex column whose last block sits on the card's bottom
+          edge — so neighbouring cards always start and end on the same lines. */}
 
       {/* --- countdown + streak ------------------------------------------- */}
-      <div className="grid gap-5 lg:grid-cols-12" style={step(1)}>
+      <div className="grid gap-6 lg:grid-cols-12" style={step(1)}>
         <section
-          className="card overflow-hidden p-6 lg:col-span-8"
+          className="card flex flex-col p-6 lg:col-span-8"
           style={{ backgroundImage: 'var(--grad-hero)' }}
-          aria-label="Countdown to Day 1"
+          aria-labelledby="countdown-title"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-              Until Day 1
-            </p>
-            <p className="text-xs text-ink-muted">
-              {new Date(data.exam.days[0] + 'T00:00:00').toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
+          <CardHeader
+            id="countdown-title"
+            icon={<HourglassIcon />}
+            title="Until Day 1"
+            kicker={new Date(data.exam.days[0] + 'T00:00:00').toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          />
+          <div className="my-auto py-4">
+            <ExamCountdown target={data.exam.days[0]} />
           </div>
-          <ExamCountdown target={data.exam.days[0]} />
-          <div className="mt-5 border-t border-line-soft pt-4">
+          <div className="border-t border-line-soft pt-4 text-center">
             <blockquote className="font-display text-base italic leading-relaxed text-ink">
               “{ANCHOR_VERSE.text}”
             </blockquote>
-            <p className="mt-1.5 text-xs font-medium tracking-wide text-accent">
+            <p className="mt-1 text-xs font-medium tracking-wide text-accent">
               {ANCHOR_VERSE.ref} · {ANCHOR_VERSE.translation}
             </p>
           </div>
@@ -209,15 +219,15 @@ export default function Dashboard(props: Props) {
       </div>
 
       {/* --- today + plant ------------------------------------------------ */}
-      <div className="grid gap-5 lg:grid-cols-12" style={step(2)}>
-        <section className="card p-6 lg:col-span-8" aria-labelledby="today-title">
+      <div className="grid gap-6 lg:grid-cols-12" style={step(2)}>
+        <section className="card flex flex-col p-6 lg:col-span-8" aria-labelledby="today-title">
           <CardHeader
             id="today-title"
             icon={<ClockIcon className="size-5" />}
             title="Today"
             kicker={now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           />
-          <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+          <div className="mt-5 grid flex-1 gap-5 md:grid-cols-2">
             <RoutinePanel routine={routine} now={now} onOpen={() => props.go('schedule')} />
             <StudyList
               suggestions={suggestions}
@@ -233,14 +243,14 @@ export default function Dashboard(props: Props) {
         <section className="card flex flex-col p-6 lg:col-span-4" aria-labelledby="plant-title">
           <CardHeader
             id="plant-title"
+            icon={<LeafIcon />}
             title="Your daisy"
             kicker={`Stage ${props.stage.roman} · ${props.stage.name}`}
-            action={<LinkButton onClick={() => props.go('subjects')}>Subjects <ArrowRightIcon /></LinkButton>}
           />
-          <div className="mx-auto my-3 w-full max-w-[13rem]">
+          <div className="mx-auto my-4 w-full max-w-[12rem] flex-1">
             <Daisy stage={props.stage} coverage={props.coverage} depth={props.depth} compact />
           </div>
-          <div className="mt-auto space-y-2.5">
+          <div className="space-y-2.5">
             <PanelBar label="Seen" value={props.coverage} />
             <PanelBar label="Deep" value={props.depth} muted />
           </div>
@@ -249,6 +259,7 @@ export default function Dashboard(props: Props) {
               Growing faster than it is flowering. Coverage is well ahead of depth.
             </p>
           )}
+          <StagePreview value={props.preview} onChange={props.setPreview} />
         </section>
       </div>
 
@@ -258,17 +269,17 @@ export default function Dashboard(props: Props) {
       </div>
 
       {/* --- pace, attention, milestones ---------------------------------- */}
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3" style={step(4)}>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" style={step(4)}>
         <PaceCard pace={pace} />
 
-        <section className="card p-6" aria-labelledby="attention-title">
+        <section className="card flex flex-col p-6" aria-labelledby="attention-title">
           <CardHeader
             id="attention-title"
             icon={<AlertIcon />}
             title="Needs attention"
             kicker="Where the most grade is still unseen"
           />
-          <ul className="mt-4 space-y-2">
+          <ul className="mt-5 space-y-2">
             {attention.map((a) => (
               <li key={a.subject.id}>
                 <button
@@ -293,16 +304,17 @@ export default function Dashboard(props: Props) {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs text-ink-muted">
+          <p className="mt-auto flex items-center gap-1.5 border-t border-line-soft pt-4 text-xs text-ink-muted">
+            <FlagIcon filled={flags.size > 0} className={`size-3.5 ${flags.size > 0 ? 'text-flag' : ''}`} />
             {flags.size === 0
               ? 'No items flagged for review.'
-              : `${count(flags.size)} item${flags.size === 1 ? '' : 's'} flagged for review — they lead today’s list.`}
+              : `${count(flags.size)} flagged for review — they lead today’s list.`}
           </p>
         </section>
 
-        <section className="card p-6 md:col-span-2 xl:col-span-1" aria-labelledby="milestones-title">
+        <section className="card flex flex-col p-6 md:col-span-2 lg:col-span-1" aria-labelledby="milestones-title">
           <CardHeader id="milestones-title" icon={<TrophyIcon />} title="Next milestones" kicker="Closest first" />
-          <ul className="mt-4 space-y-4">
+          <ul className="mt-5 flex flex-1 flex-col justify-between gap-4">
             {milestones.map((m) => {
               const frac = Math.min(1, m.current / m.target);
               return (
@@ -310,7 +322,8 @@ export default function Dashboard(props: Props) {
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-sm font-medium text-ink">{m.label}</span>
                     <span className="tnum shrink-0 text-xs text-ink-muted">
-                      {m.unit === '%' ? `${m.current}%` : count(m.current)} / {m.unit === '%' ? `${m.target}%` : count(m.target)}
+                      {m.unit === '%' ? `${m.current}%` : count(m.current)} /{' '}
+                      {m.unit === '%' ? `${m.target}%` : count(m.target)}
                     </span>
                   </div>
                   <div
@@ -632,13 +645,13 @@ function Heatmap({ events, now, today }: { events: StudyEvent[]; now: Date; toda
         kicker={`Last ${HEAT_WEEKS} weeks · shows how evenly the work is spread`}
       />
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-start">
+      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_13rem]">
         <div className="overflow-x-auto">
           <div
             role="img"
             aria-label={`${studyDays} study days and ${actions} actions in the last ${HEAT_WEEKS} weeks. Busiest weekday: ${busiest}.`}
-            className="grid w-max gap-1"
-            style={{ gridTemplateColumns: `2rem repeat(${HEAT_WEEKS}, 1.125rem)` }}
+            className="grid w-full min-w-[34rem] gap-[3px]"
+            style={{ gridTemplateColumns: `2rem repeat(${HEAT_WEEKS}, minmax(0, 1fr))` }}
           >
             <span />
             {weeks.map((_, i) => (
@@ -662,7 +675,7 @@ function Heatmap({ events, now, today }: { events: StudyEvent[]; now: Date; toda
           </div>
         </div>
 
-        <dl className="grid grid-cols-3 gap-3 lg:grid-cols-1">
+        <dl className="grid grid-cols-3 gap-3 lg:grid-cols-1 lg:grid-rows-3">
           <HeatStat label="Study days" value={String(studyDays)} sub={`of ${cells.length}`} />
           <HeatStat label="This week" value={String(thisWeek)} sub="days so far" />
           <HeatStat label="Busiest day" value={busiest} sub={peak > 0 ? `${peak} actions` : 'no activity yet'} />
@@ -719,7 +732,7 @@ function HeatRow({
                 ? undefined
                 : `${new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}: ${c.count} action${c.count === 1 ? '' : 's'}`
             }
-            className={`size-[1.125rem] rounded-[4px] ${
+            className={`aspect-square w-full rounded-[4px] ${
               c.future ? 'border border-dashed border-line-soft' : HEAT_BG[c.level]
             } ${c.date === today ? 'ring-2 ring-node ring-offset-1 ring-offset-raised' : ''}`}
           />
@@ -731,7 +744,7 @@ function HeatRow({
 
 function HeatStat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-tile border border-line-soft p-3">
+    <div className="flex flex-col justify-center rounded-tile border border-line-soft p-3">
       <dt className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</dt>
       <dd className="tnum mt-1 font-display text-2xl leading-none text-heading">{value}</dd>
       <dd className="mt-1 text-[11px] text-ink-muted">{sub}</dd>
@@ -769,7 +782,7 @@ function PaceCard({ pace }: { pace: ReturnType<typeof paceOf> }) {
           : { text: 'Review weeks — no item target', icon: null, className: 'bg-sunken/60 text-ink-muted' };
 
   return (
-    <section className="card p-6" aria-labelledby="pace-title">
+    <section className="card flex flex-col p-6" aria-labelledby="pace-title">
       <CardHeader
         id="pace-title"
         icon={<TargetIcon />}
@@ -813,7 +826,8 @@ function PaceCard({ pace }: { pace: ReturnType<typeof paceOf> }) {
         </div>
       )}
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-4">
+      <div aria-hidden="true" className="min-h-5 flex-1" />
+      <dl className="grid grid-cols-2 gap-3 border-t border-line-soft pt-4">
         <div>
           <dt className="text-[11px] uppercase tracking-wide text-ink-muted">Needed per day</dt>
           <dd className="tnum mt-1 font-display text-xl text-heading">{pace.perDayNeeded}</dd>
@@ -907,5 +921,46 @@ function ExamCountdown({ target }: { target: string }) {
           : `${left.months} months, ${left.weeks} weeks, ${left.days} days, ${left.hours} hours, ${left.minutes} minutes and ${left.seconds} seconds until Day 1.`}
       </p>
     </div>
+  );
+}
+
+// --- TEMPORARY: stage preview -------------------------------------------------
+
+/**
+ * Forces the daisy to any of its seven stages so the plates can be reviewed
+ * without ticking 1,489 items. Changes nothing that is stored. Folded away by
+ * default so it does not compete with the card.
+ */
+function StagePreview({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <details className="group mt-4 border-t border-line-soft pt-3">
+      <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-ink-muted hover:text-accent">
+        Preview stages <span className="font-normal normal-case tracking-normal">· temporary</span>
+      </summary>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {STAGES.map((s, i) => (
+          <button
+            key={s.roman}
+            onClick={() => onChange(value === i ? null : i)}
+            aria-pressed={value === i}
+            title={`${s.name} (${s.band})`}
+            className={`pressable rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+              value === i
+                ? 'border-accent bg-accent-solid text-on-accent'
+                : 'border-line-soft bg-raised text-ink hover:border-line'
+            }`}
+          >
+            {s.roman}
+          </button>
+        ))}
+        <button
+          onClick={() => onChange(null)}
+          aria-pressed={value === null}
+          className="pressable rounded-full border border-line-soft px-2.5 py-1 text-[11px] text-ink-muted hover:border-line"
+        >
+          Live
+        </button>
+      </div>
+    </details>
   );
 }
