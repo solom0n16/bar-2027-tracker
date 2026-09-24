@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Dashboard from './Dashboard';
 import ScheduleTables from './Schedule';
-import { useNow, useProgress, useRoute, useSchedule, useScrolled, type Route } from './hooks';
+import Shell, { type SearchProps } from './Shell';
+import { useNow, useProgress, useRoute, useSchedule } from './hooks';
 import {
   coverage,
   daysUntil,
@@ -25,15 +26,10 @@ import { routineNow } from './lib/dashboard';
 import {
   ArrowRightIcon,
   BackIcon,
-  BookIcon,
-  CalendarIcon,
   CloseIcon,
-  DaisyMark,
   FlagIcon,
-  HomeIcon,
   LockIcon,
   MinusIcon,
-  SearchIcon,
 } from './Icons';
 import { PageHeader, PanelBar, count, pct, step, type Lookups, type Syllabus } from './ui';
 
@@ -538,182 +534,6 @@ function SchedulePage({
           nowRowId={routine.now?.row.id ?? null}
         />
       </div>
-    </div>
-  );
-}
-
-// --- shell ------------------------------------------------------------------
-
-interface SearchProps {
-  query: string;
-  setQuery: (q: string) => void;
-  hits: SearchHit[];
-  onPick: (h: SearchHit) => void;
-}
-
-const NAV: { route: Route; label: string; icon: ReactNode }[] = [
-  { route: 'dashboard', label: 'Dashboard', icon: <HomeIcon className="size-4 shrink-0" /> },
-  { route: 'subjects', label: 'Subjects', icon: <BookIcon className="size-4 shrink-0" /> },
-  { route: 'schedule', label: 'Schedule', icon: <CalendarIcon className="size-4 shrink-0" /> },
-];
-
-/**
- * One sticky top panel: brand, the three pages, and search. On a laptop they
- * share a single row; on narrow windows the page links drop to a second row so
- * nothing is squeezed.
- */
-function Shell({
-  children,
-  search,
-  route,
-  go,
-}: {
-  children: ReactNode;
-  search: SearchProps;
-  route: Route;
-  go: (r: Route) => void;
-}) {
-  const scrolled = useScrolled();
-  const main = useRef<HTMLElement>(null);
-  const first = useRef(true);
-
-  // Move focus to the new page for keyboard and screen-reader users, but not
-  // on first load, where focus belongs to the browser.
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    main.current?.focus({ preventScroll: true });
-  }, [route]);
-
-  return (
-    <div className="min-h-dvh">
-      <a
-        href="#main"
-        className="sr-only z-50 rounded-full bg-raised px-4 py-2 text-sm font-semibold text-accent shadow-e2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-      >
-        Skip to content
-      </a>
-
-      <header
-        className={`glass sticky top-0 z-30 backdrop-blur-xl backdrop-saturate-150 ${
-          scrolled ? 'glass-scrolled' : ''
-        }`}
-      >
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6 lg:flex-nowrap lg:px-8">
-          <a
-            href="#/"
-            onClick={(e) => {
-              e.preventDefault();
-              go('dashboard');
-            }}
-            aria-label="Bar 2027 Study Tracker, go to dashboard"
-            className="mr-auto shrink-0 rounded-xl lg:mr-0"
-          >
-            <Brand />
-          </a>
-
-          <nav
-            aria-label="Main"
-            className="order-last flex w-full gap-1 lg:order-none lg:mx-auto lg:w-auto lg:rounded-full lg:border lg:border-line-soft lg:bg-raised/70 lg:p-1 lg:shadow-e1"
-          >
-            {NAV.map((n) => {
-              const active = route === n.route;
-              return (
-                <a
-                  key={n.route}
-                  href={n.route === 'dashboard' ? '#/' : `#/${n.route}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    go(n.route);
-                  }}
-                  aria-current={active ? 'page' : undefined}
-                  className={`pressable flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-medium sm:flex-none sm:px-4 ${
-                    active
-                      ? 'bg-accent-solid text-on-accent shadow-e1'
-                      : 'text-ink-muted hover:bg-sunken/50 hover:text-ink'
-                  }`}
-                >
-                  {n.icon}
-                  {n.label}
-                </a>
-              );
-            })}
-          </nav>
-
-          <div className="w-full sm:w-auto sm:shrink-0">
-            <SearchBox {...search} />
-          </div>
-        </div>
-      </header>
-
-      <main
-        id="main"
-        ref={main}
-        tabIndex={-1}
-        className="mx-auto w-full max-w-7xl px-4 pt-4 outline-none sm:px-6 lg:px-8"
-      >
-        {children}
-      </main>
-    </div>
-  );
-}
-
-function Brand() {
-  return (
-    <div className="flex items-center gap-3">
-      <DaisyMark />
-      <div>
-        <p className="font-display text-xl leading-none text-heading">Bar 2027</p>
-        <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-ink-muted">Study tracker</p>
-      </div>
-    </div>
-  );
-}
-
-/** Search lives in the top bar. The results panel is absolutely positioned so it
- *  overlays the page rather than pushing the whole layout down on every
- *  keystroke. */
-function SearchBox({ query, setQuery, hits, onPick }: SearchProps) {
-  const open = query.trim().length >= 2;
-  return (
-    <div className="relative w-full sm:w-80 lg:w-96">
-      <label className="sr-only" htmlFor="q">
-        Search all 1,489 items
-      </label>
-      <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
-      <input
-        id="q"
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-        placeholder="Search all 1,489 items…"
-        className="w-full rounded-full border border-line-soft bg-raised py-2.5 pl-11 pr-4 text-sm text-ink shadow-e1 transition-shadow placeholder:text-ink-muted hover:shadow-e2 focus:shadow-e2"
-      />
-
-      {open && (
-        <div className="card animate-expand absolute right-0 top-full z-10 mt-2 max-h-[70vh] w-full overflow-y-auto p-0 shadow-e3 sm:w-[28rem]">
-          <p className="sticky top-0 border-b border-line-soft bg-raised px-4 py-2.5 text-xs text-ink-muted">
-            {hits.length === 0
-              ? `No matches for “${query.trim()}”. Try a shorter phrase, or a section ref like I.A.1.`
-              : `${hits.length} match${hits.length === 1 ? '' : 'es'}`}
-          </p>
-          {hits.map((h) => (
-            <button
-              key={h.item.id}
-              onClick={() => onPick(h)}
-              className="pressable block w-full border-b border-line-soft px-4 py-3 text-left last:border-0 hover:bg-wash-sage"
-            >
-              <span className="text-sm leading-snug text-ink">{h.item.text}</span>
-              <span className="mt-1 block text-xs text-ink-muted">
-                {h.subject.shortName} · {h.part.title} · {h.item.ref}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

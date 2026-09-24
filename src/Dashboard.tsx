@@ -261,8 +261,20 @@ export default function Dashboard(props: Props) {
                       {Math.round(a.subject.weight * 100)}% of grade
                     </span>
                   </span>
-                  <span className="mt-1.5 block">
-                    <PanelBar label="Seen" value={a.coverage} />
+                  <span className="mt-1 flex items-center gap-2">
+                    <span
+                      className="meter-track h-1.5 flex-1"
+                      role="progressbar"
+                      aria-label={`${a.subject.shortName} seen`}
+                      aria-valuenow={Math.round(a.coverage * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <span className="meter-fill block" style={{ width: `${a.coverage * 100}%` }} />
+                    </span>
+                    <span className="tnum w-14 shrink-0 text-right text-[11px] text-ink-muted">
+                      {Math.round(a.coverage * 100)}% seen
+                    </span>
                   </span>
                 </button>
               </li>
